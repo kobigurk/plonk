@@ -269,7 +269,7 @@ impl StandardComposer {
     /// Returns the Public Inputs array stored by the `StandardComposer`.
     #[cfg(feature = "trace")]
     pub fn public_inputs(&mut self) -> Vec<Scalar> {
-        self.public_inputs
+        self.public_inputs.clone()
     }
 
     /// This function is used to add a blinding factor to the witness polynomials

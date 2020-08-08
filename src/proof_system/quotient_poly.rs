@@ -1,28 +1,28 @@
 use crate::fft::{EvaluationDomain, Polynomial};
 use crate::proof_system::widget::ProverKey;
 use anyhow::{Error, Result};
-use dusk_bls12_381::Scalar;
 use rayon::prelude::*;
+use algebra::PrimeField;
 
 /// This quotient polynomial can only be used for the standard composer
 /// Each composer will need to implement their own method for computing the quotient polynomial
 
 /// Computes the quotient polynomial
-pub(crate) fn compute(
-    domain: &EvaluationDomain,
-    prover_key: &ProverKey,
-    z_poly: &Polynomial,
-    (w_l_poly, w_r_poly, w_o_poly, w_4_poly): (&Polynomial, &Polynomial, &Polynomial, &Polynomial),
-    public_inputs_poly: &Polynomial,
+pub(crate) fn compute<F: PrimeField>(
+    domain: &EvaluationDomain<F>,
+    prover_key: &ProverKey<F>,
+    z_poly: &Polynomial<F>,
+    (w_l_poly, w_r_poly, w_o_poly, w_4_poly): (&Polynomial<F>, &Polynomial<F>, &Polynomial<F>, &Polynomial<F>),
+    public_inputs_poly: &Polynomial<F>,
     (alpha, beta, gamma, range_challenge, logic_challenge, ecc_challenge): &(
-        Scalar,
-        Scalar,
-        Scalar,
-        Scalar,
-        Scalar,
-        Scalar,
+        F,
+        F,
+        F,
+        F,
+        F,
+        F,
     ),
-) -> Result<Polynomial, Error> {
+) -> Result<Polynomial<F>, Error> {
     // Compute 4n eval of z(X)
     let domain_4n = EvaluationDomain::new(4 * domain.size())?;
     let mut z_eval_4n = domain_4n.coset_fft(&z_poly);
@@ -71,7 +71,7 @@ pub(crate) fn compute(
         .map(|i| {
             let numerator = t_1[i] + t_2[i];
             let denominator = prover_key.v_h_coset_4n()[i];
-            numerator * denominator.invert().unwrap()
+            numerator * denominator.inverse().unwrap()
         })
         .collect();
 
@@ -81,13 +81,13 @@ pub(crate) fn compute(
 }
 
 // Ensures that the circuit is satisfied
-fn compute_circuit_satisfiability_equation(
-    domain: &EvaluationDomain,
-    (range_challenge, logic_challenge, ecc_challenge): (&Scalar, &Scalar, &Scalar),
-    prover_key: &ProverKey,
-    (wl_eval_4n, wr_eval_4n, wo_eval_4n, w4_eval_4n): (&[Scalar], &[Scalar], &[Scalar], &[Scalar]),
-    pi_poly: &Polynomial,
-) -> Vec<Scalar> {
+fn compute_circuit_satisfiability_equation<F: PrimeField>(
+    domain: &EvaluationDomain<F>,
+    (range_challenge, logic_challenge, ecc_challenge): (&F, &F, &F),
+    prover_key: &ProverKey<F>,
+    (wl_eval_4n, wr_eval_4n, wo_eval_4n, w4_eval_4n): (&[F], &[F], &[F], &[F]),
+    pi_poly: &Polynomial<F>,
+) -> Vec<F> {
     let domain_4n = EvaluationDomain::new(4 * domain.size()).unwrap();
     let pi_eval_4n = domain_4n.coset_fft(pi_poly);
 
@@ -122,6 +122,7 @@ fn compute_circuit_satisfiability_equation(
                 &w4_next,
             );
 
+            /*
             let d = prover_key.ecc.compute_quotient_i(
                 i,
                 ecc_challenge,
@@ -133,20 +134,21 @@ fn compute_circuit_satisfiability_equation(
                 &w4,
                 &w4_next,
             );
+            */
 
-            (a + pi) + b + c + d
+            (a + pi) + b + c// + d
         })
         .collect();
     t
 }
 
-fn compute_permutation_checks(
-    domain: &EvaluationDomain,
-    prover_key: &ProverKey,
-    (wl_eval_4n, wr_eval_4n, wo_eval_4n, w4_eval_4n): (&[Scalar], &[Scalar], &[Scalar], &[Scalar]),
-    z_eval_4n: &[Scalar],
-    (alpha, beta, gamma): (&Scalar, &Scalar, &Scalar),
-) -> Vec<Scalar> {
+fn compute_permutation_checks<F: PrimeField>(
+    domain: &EvaluationDomain<F>,
+    prover_key: &ProverKey<F>,
+    (wl_eval_4n, wr_eval_4n, wo_eval_4n, w4_eval_4n): (&[F], &[F], &[F], &[F]),
+    z_eval_4n: &[F],
+    (alpha, beta, gamma): (&F, &F, &F),
+) -> Vec<F> {
     let domain_4n = EvaluationDomain::new(4 * domain.size()).unwrap();
     let l1_poly_alpha = compute_first_lagrange_poly_scaled(domain, alpha.square());
     let l1_alpha_sq_evals = domain_4n.coset_fft(&l1_poly_alpha.coeffs);
@@ -171,8 +173,8 @@ fn compute_permutation_checks(
         .collect();
     t
 }
-fn compute_first_lagrange_poly_scaled(domain: &EvaluationDomain, scale: Scalar) -> Polynomial {
-    let mut x_evals = vec![Scalar::zero(); domain.size()];
+fn compute_first_lagrange_poly_scaled<F: PrimeField>(domain: &EvaluationDomain<F>, scale: F) -> Polynomial<F> {
+    let mut x_evals = vec![F::zero(); domain.size()];
     x_evals[0] = scale;
     domain.ifft_in_place(&mut x_evals);
     Polynomial::from_coefficients_vec(x_evals)

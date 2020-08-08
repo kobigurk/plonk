@@ -8,6 +8,7 @@ pub(crate) mod variable;
 
 /// Simple Arithmetic gates
 pub mod arithmetic;
+/*
 /// Boolean gate
 pub mod boolean;
 /// Scalar multiplication gate
@@ -18,6 +19,7 @@ pub(crate) mod helper;
 pub mod logic;
 /// Range gate
 pub mod range;
+*/
 
 pub use composer::StandardComposer;
 pub use variable::{Variable, WireData};

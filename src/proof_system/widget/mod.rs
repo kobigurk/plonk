@@ -1,5 +1,5 @@
 pub mod arithmetic;
-pub mod ecc;
+//pub mod ecc;
 pub mod logic;
 pub mod permutation;
 pub mod range;
@@ -7,44 +7,48 @@ pub mod range;
 use crate::fft::Evaluations;
 use crate::transcript::TranscriptProtocol;
 use merlin::Transcript;
+use algebra::{PrimeField, PairingEngine};
+
 /// PLONK circuit proving key
 #[derive(Debug)]
-pub struct ProverKey {
+pub struct ProverKey<F: PrimeField> {
     /// ProverKey for arithmetic gate
-    pub arithmetic: arithmetic::ProverKey,
+    pub arithmetic: arithmetic::ProverKey<F>,
     /// ProverKey for logic gate
-    pub logic: logic::ProverKey,
+    pub logic: logic::ProverKey<F>,
     /// ProverKey for range gate
-    pub range: range::ProverKey,
+    pub range: range::ProverKey<F>,
     /// ProverKey for ecc gate
-    pub ecc: ecc::ProverKey,
+    //pub ecc: ecc::ProverKey,
     /// ProverKey for permutation checks
-    pub permutation: permutation::ProverKey,
+    pub permutation: permutation::ProverKey<F>,
     // Pre-processes the 4n Evaluations for the vanishing polynomial, so they do not
     // need to be computed at the proving stage.
     // Note: With this, we can combine all parts of the quotient polynomial in their evaluation phase and
     // divide by the quotient polynomial without having to perform IFFT
-    pub(crate) v_h_coset_4n: Evaluations,
+    pub(crate) v_h_coset_4n: Evaluations<F>,
 }
 
 /// PLONK circuit verification key
 #[derive(Debug)]
-pub struct VerifierKey {
+pub struct VerifierKey<E: PairingEngine> {
     /// Circuit size
     pub n: usize,
     /// VerifierKey for arithmetic gates
-    pub arithmetic: arithmetic::VerifierKey,
+    pub arithmetic: arithmetic::VerifierKey<E>,
     /// VerifierKey for logic gates
-    pub logic: logic::VerifierKey,
+    pub logic: logic::VerifierKey<E>,
     /// VerifierKey for range gates
-    pub range: range::VerifierKey,
+    pub range: range::VerifierKey<E>,
+    /*
     /// VerifierKey for ecc gates
-    pub ecc: ecc::VerifierKey,
+    //pub ecc: ecc::VerifierKey,
+    */
     /// VerifierKey for permutation checks
-    pub permutation: permutation::VerifierKey,
+    pub permutation: permutation::VerifierKey<E>,
 }
 
-impl VerifierKey {
+impl<E: PairingEngine> VerifierKey<E> {
     /// Adds the circuit description to the transcript
     pub(crate) fn seed_transcript(&self, transcript: &mut Transcript) {
         transcript.append_commitment(b"q_m", &self.arithmetic.q_m);
@@ -63,12 +67,12 @@ impl VerifierKey {
         transcript.append_commitment(b"fourth_sigma", &self.permutation.fourth_sigma);
 
         // Append circuit size to transcript
-        transcript.circuit_domain_sep(self.n as u64);
+        TranscriptProtocol::<E>::circuit_domain_sep(transcript, self.n as u64);
     }
 }
 
-impl ProverKey {
-    pub(crate) fn v_h_coset_4n(&self) -> &Evaluations {
+impl<F: PrimeField> ProverKey<F> {
+    pub(crate) fn v_h_coset_4n(&self) -> &Evaluations::<F> {
         &self.v_h_coset_4n
     }
 }

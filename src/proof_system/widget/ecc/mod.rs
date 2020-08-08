@@ -11,14 +11,15 @@ pub use verifierkey::VerifierKey;
 
 // Bits are accumulated in base2. So we use d(Xw) - 2d(X) to extract the base2 bit
 
-use dusk_bls12_381::Scalar;
-fn extract_bit(curr_acc: &Scalar, next_acc: &Scalar) -> Scalar {
+use algebra::PrimeField;
+
+fn extract_bit<F: PrimeField>(curr_acc: F, next_acc: F) -> F {
     // Next - 2 * current
     next_acc - (curr_acc + curr_acc)
 }
 
 // Ensures that the bit is either +1, -1 or 0
-fn check_bit_consistency(bit: Scalar) -> Scalar {
-    let one = Scalar::one();
+fn check_bit_consistency<F: PrimeField>(bit: F) -> F {
+    let one = F::one();
     bit * (bit - one) * (bit + one)
 }

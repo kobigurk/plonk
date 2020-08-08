@@ -1,14 +1,14 @@
 use super::{check_bit_consistency, extract_bit};
 use crate::fft::{Evaluations, Polynomial};
-use dusk_bls12_381::Scalar;
 use dusk_jubjub::EDWARDS_D;
+use algebra::PrimeField;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct ProverKey {
-    pub q_l: (Polynomial, Evaluations),
-    pub q_r: (Polynomial, Evaluations),
-    pub q_c: (Polynomial, Evaluations),
-    pub q_ecc: (Polynomial, Evaluations),
+pub struct ProverKey<F: PrimeField> {
+    pub q_l: (Polynomial<F>, Evaluations<F>),
+    pub q_r: (Polynomial<F>, Evaluations<F>),
+    pub q_c: (Polynomial<F>, Evaluations<F>),
+    pub q_ecc: (Polynomial<F>, Evaluations<F>),
 }
 
 impl ProverKey {

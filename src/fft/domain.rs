@@ -9,38 +9,38 @@
 use super::{fft_errors::FFTErrors, Evaluations};
 use anyhow::{Error, Result};
 use core::fmt;
-use dusk_bls12_381::{Scalar, GENERATOR, ROOT_OF_UNITY, TWO_ADACITY};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use std::ops::MulAssign;
+use algebra::{PrimeField, FftParameters};
 
 /// Defines a domain over which finite field (I)FFTs can be performed. Works
 /// only for fields that have a large multiplicative subgroup of size that is
 /// a power-of-2.
 #[derive(Copy, Clone, Eq, PartialEq)]
-pub struct EvaluationDomain {
+pub struct EvaluationDomain<F: PrimeField> {
     /// The size of the domain.
     pub size: u64,
     /// `log_2(self.size)`.
     pub log_size_of_group: u32,
     /// Size of the domain as a field element.
-    pub size_as_field_element: Scalar,
+    pub size_as_field_element: F,
     /// Inverse of the size in the field.
-    pub size_inv: Scalar,
+    pub size_inv: F,
     /// A generator of the subgroup.
-    pub group_gen: Scalar,
+    pub group_gen: F,
     /// Inverse of the generator of the subgroup.
-    pub group_gen_inv: Scalar,
+    pub group_gen_inv: F,
     /// Multiplicative generator of the finite field.
-    pub generator_inv: Scalar,
+    pub generator_inv: F,
 }
 
-impl fmt::Debug for EvaluationDomain {
+impl<F: PrimeField> fmt::Debug for EvaluationDomain<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Multiplicative subgroup of size {}", self.size)
     }
 }
 
-impl EvaluationDomain {
+impl<F: PrimeField> EvaluationDomain<F> {
     /// Construct a domain that is large enough for evaluations of a polynomial
     /// having `num_coeffs` coefficients.
     pub fn new(num_coeffs: usize) -> Result<Self, Error> {
@@ -48,10 +48,10 @@ impl EvaluationDomain {
         let size = num_coeffs.next_power_of_two() as u64;
         let log_size_of_group = size.trailing_zeros();
 
-        if log_size_of_group >= TWO_ADACITY {
+        if log_size_of_group >= F::FftParams::TWO_ADICITY {
             return Err(FFTErrors::InvalidEvalDomainSize {
                 log_size_of_group,
-                adacity: TWO_ADACITY,
+                adacity: F::FftParams::TWO_ADICITY,
             }
             .into());
         }
@@ -59,12 +59,12 @@ impl EvaluationDomain {
         // Compute the generator for the multiplicative subgroup.
         // It should be 2^(log_size_of_group) root of unity.
 
-        let mut group_gen = ROOT_OF_UNITY;
-        for _ in log_size_of_group..TWO_ADACITY {
+        let mut group_gen = F::from_repr(F::FftParams::TWO_ADIC_ROOT_OF_UNITY).unwrap();
+        for _ in log_size_of_group..F::FftParams::TWO_ADICITY {
             group_gen = group_gen.square();
         }
-        let size_as_field_element = Scalar::from(size);
-        let size_inv = size_as_field_element.invert().unwrap();
+        let size_as_field_element = F::from(size as u128);
+        let size_inv = size_as_field_element.inverse().unwrap();
 
         Ok(EvaluationDomain {
             size,
@@ -72,15 +72,15 @@ impl EvaluationDomain {
             size_as_field_element,
             size_inv,
             group_gen,
-            group_gen_inv: group_gen.invert().unwrap(),
-            generator_inv: GENERATOR.invert().unwrap(),
+            group_gen_inv: group_gen.inverse().unwrap(),
+            generator_inv: F::multiplicative_generator().inverse().unwrap(),
         })
     }
     /// Return the size of a domain that is large enough for evaluations of a
     /// polynomial having `num_coeffs` coefficients.
     pub fn compute_size_of_domain(num_coeffs: usize) -> Option<usize> {
         let size = num_coeffs.next_power_of_two();
-        if size.trailing_zeros() < TWO_ADACITY {
+        if size.trailing_zeros() < F::FftParams::TWO_ADICITY {
             Some(size)
         } else {
             None
@@ -93,20 +93,20 @@ impl EvaluationDomain {
     }
 
     /// Compute a FFT.
-    pub fn fft(&self, coeffs: &[Scalar]) -> Vec<Scalar> {
+    pub fn fft(&self, coeffs: &[F]) -> Vec<F> {
         let mut coeffs = coeffs.to_vec();
         self.fft_in_place(&mut coeffs);
         coeffs
     }
 
     /// Compute a FFT, modifying the vector in place.
-    pub fn fft_in_place(&self, coeffs: &mut Vec<Scalar>) {
-        coeffs.resize(self.size(), Scalar::zero());
+    pub fn fft_in_place(&self, coeffs: &mut Vec<F>) {
+        coeffs.resize(self.size(), F::zero());
         best_fft(coeffs, self.group_gen, self.log_size_of_group)
     }
 
     /// Compute an IFFT.
-    pub fn ifft(&self, evals: &[Scalar]) -> Vec<Scalar> {
+    pub fn ifft(&self, evals: &[F]) -> Vec<F> {
         let mut evals = evals.to_vec();
         self.ifft_in_place(&mut evals);
         evals
@@ -114,15 +114,15 @@ impl EvaluationDomain {
 
     /// Compute an IFFT, modifying the vector in place.
     #[inline]
-    pub fn ifft_in_place(&self, evals: &mut Vec<Scalar>) {
-        evals.resize(self.size(), Scalar::zero());
+    pub fn ifft_in_place(&self, evals: &mut Vec<F>) {
+        evals.resize(self.size(), F::zero());
         best_fft(evals, self.group_gen_inv, self.log_size_of_group);
         // cfg_iter_mut!(evals).for_each(|val| *val *= &self.size_inv);
         evals.par_iter_mut().for_each(|val| *val *= &self.size_inv);
     }
 
-    fn distribute_powers(coeffs: &mut [Scalar], g: Scalar) {
-        let mut pow = Scalar::one();
+    fn distribute_powers(coeffs: &mut [F], g: F) {
+        let mut pow = F::one();
         coeffs.iter_mut().for_each(|c| {
             *c *= &pow;
             pow *= &g
@@ -130,7 +130,7 @@ impl EvaluationDomain {
     }
 
     /// Compute a FFT over a coset of the domain.
-    pub fn coset_fft(&self, coeffs: &[Scalar]) -> Vec<Scalar> {
+    pub fn coset_fft(&self, coeffs: &[F]) -> Vec<F> {
         let mut coeffs = coeffs.to_vec();
         self.coset_fft_in_place(&mut coeffs);
         coeffs
@@ -138,13 +138,13 @@ impl EvaluationDomain {
 
     /// Compute a FFT over a coset of the domain, modifying the input vector
     /// in place.
-    pub fn coset_fft_in_place(&self, coeffs: &mut Vec<Scalar>) {
-        Self::distribute_powers(coeffs, GENERATOR);
+    pub fn coset_fft_in_place(&self, coeffs: &mut Vec<F>) {
+        Self::distribute_powers(coeffs, F::multiplicative_generator());
         self.fft_in_place(coeffs);
     }
 
     /// Compute an IFFT over a coset of the domain.
-    pub fn coset_ifft(&self, evals: &[Scalar]) -> Vec<Scalar> {
+    pub fn coset_ifft(&self, evals: &[F]) -> Vec<F> {
         let mut evals = evals.to_vec();
         self.coset_ifft_in_place(&mut evals);
         evals
@@ -152,7 +152,7 @@ impl EvaluationDomain {
 
     /// Compute an IFFT over a coset of the domain, modifying the input vector in
     /// place.
-    pub fn coset_ifft_in_place(&self, evals: &mut Vec<Scalar>) {
+    pub fn coset_ifft_in_place(&self, evals: &mut Vec<F>) {
         self.ifft_in_place(evals);
         Self::distribute_powers(evals, self.generator_inv);
     }
@@ -160,13 +160,13 @@ impl EvaluationDomain {
     #[allow(clippy::needless_range_loop)]
     /// Evaluate all the lagrange polynomials defined by this domain at the
     /// point `tau`.
-    pub fn evaluate_all_lagrange_coefficients(&self, tau: Scalar) -> Vec<Scalar> {
+    pub fn evaluate_all_lagrange_coefficients(&self, tau: F) -> Vec<F> {
         // Evaluate all Lagrange polynomials
         let size = self.size as usize;
         let t_size = tau.pow(&[self.size, 0, 0, 0]);
-        let one = Scalar::one();
-        if t_size == Scalar::one() {
-            let mut u = vec![Scalar::zero(); size];
+        let one = F::one();
+        if t_size == F::one() {
+            let mut u = vec![F::zero(); size];
             let mut omega_i = one;
             for i in 0..size {
                 if omega_i == tau {
@@ -181,8 +181,8 @@ impl EvaluationDomain {
 
             let mut l = (t_size - one) * self.size_inv;
             let mut r = one;
-            let mut u = vec![Scalar::zero(); size];
-            let mut ls = vec![Scalar::zero(); size];
+            let mut u = vec![F::zero(); size];
+            let mut ls = vec![F::zero(); size];
             for i in 0..size {
                 u[i] = tau - r;
                 ls[i] = l;
@@ -203,8 +203,8 @@ impl EvaluationDomain {
     /// This evaluates the vanishing polynomial for this domain at tau.
     /// For multiplicative subgroups, this polynomial is `z(X) = X^self.size -
     /// 1`.
-    pub fn evaluate_vanishing_polynomial(&self, tau: &Scalar) -> Scalar {
-        tau.pow(&[self.size, 0, 0, 0]) - Scalar::one()
+    pub fn evaluate_vanishing_polynomial(&self, tau: &F) -> F {
+        tau.pow(&[self.size, 0, 0, 0]) - F::one()
     }
 
     /// Given that the domain size is `D`  
@@ -213,21 +213,21 @@ impl EvaluationDomain {
     pub fn compute_vanishing_poly_over_coset(
         &self,            // domain to evaluate over
         poly_degree: u64, // degree of the vanishing polynomial
-    ) -> Evaluations {
+    ) -> Evaluations<F> {
         assert!((self.size() as u64) > poly_degree);
-        let coset_gen = GENERATOR.pow(&[poly_degree, 0, 0, 0]);
+        let coset_gen = F::multiplicative_generator().pow(&[poly_degree, 0, 0, 0]);
         let v_h: Vec<_> = (0..self.size())
             .map(|i| {
-                (coset_gen * self.group_gen.pow(&[poly_degree * i as u64, 0, 0, 0])) - Scalar::one()
+                (coset_gen * self.group_gen.pow(&[poly_degree * i as u64, 0, 0, 0])) - F::one()
             })
             .collect();
         Evaluations::from_vec_and_domain(v_h, *self)
     }
 
     /// Return an iterator over the elements of the domain.
-    pub fn elements(&self) -> Elements {
+    pub fn elements(&self) -> Elements::<F> {
         Elements {
-            cur_elem: Scalar::one(),
+            cur_elem: F::one(),
             cur_pow: 0,
             domain: *self,
         }
@@ -236,10 +236,10 @@ impl EvaluationDomain {
     /// The target polynomial is the zero polynomial in our
     /// evaluation domain, so we must perform division over
     /// a coset.
-    pub fn divide_by_vanishing_poly_on_coset_in_place(&self, evals: &mut [Scalar]) {
+    pub fn divide_by_vanishing_poly_on_coset_in_place(&self, evals: &mut [F]) {
         let i = self
-            .evaluate_vanishing_polynomial(&GENERATOR)
-            .invert()
+            .evaluate_vanishing_polynomial(&F::multiplicative_generator())
+            .inverse()
             .unwrap();
 
         evals.par_iter_mut().for_each(|eval| *eval *= &i);
@@ -284,9 +284,9 @@ impl EvaluationDomain {
     #[must_use]
     pub fn mul_polynomials_in_evaluation_domain(
         &self,
-        self_evals: &[Scalar],
-        other_evals: &[Scalar],
-    ) -> Vec<Scalar> {
+        self_evals: &[F],
+        other_evals: &[F],
+    ) -> Vec<F> {
         assert_eq!(self_evals.len(), other_evals.len());
         let mut result = self_evals.to_vec();
 
@@ -300,7 +300,7 @@ impl EvaluationDomain {
 }
 
 #[cfg(feature = "parallel")]
-fn best_fft(a: &mut [Scalar], omega: Scalar, log_n: u32) {
+fn best_fft<F: PrimeField>(a: &mut [F], omega: F, log_n: u32) {
     fn log2_floor(num: usize) -> u32 {
         assert!(num > 0);
         let mut pow = 0;
@@ -320,7 +320,7 @@ fn best_fft(a: &mut [Scalar], omega: Scalar, log_n: u32) {
 }
 
 #[cfg(not(feature = "parallel"))]
-fn best_fft(a: &mut [Scalar], omega: Scalar, log_n: u32) {
+fn best_fft<F: PrimeField>(a: &mut [F], omega: F, log_n: u32) {
     serial_fft(a, omega, log_n)
 }
 
@@ -334,7 +334,7 @@ fn bitreverse(mut n: u32, l: u32) -> u32 {
     r
 }
 
-pub(crate) fn serial_fft(a: &mut [Scalar], omega: Scalar, log_n: u32) {
+pub(crate) fn serial_fft<F: PrimeField>(a: &mut [F], omega: F, log_n: u32) {
     let n = a.len() as u32;
     assert_eq!(n, 1 << log_n);
 
@@ -351,7 +351,7 @@ pub(crate) fn serial_fft(a: &mut [Scalar], omega: Scalar, log_n: u32) {
 
         let mut k = 0;
         while k < n {
-            let mut w = Scalar::one();
+            let mut w = F::one();
             for j in 0..m {
                 let mut t = a[(k + j + m) as usize];
                 t *= &w;
@@ -370,7 +370,7 @@ pub(crate) fn serial_fft(a: &mut [Scalar], omega: Scalar, log_n: u32) {
 }
 
 #[cfg(feature = "parallel")]
-pub(crate) fn parallel_fft(a: &mut [Scalar], omega: Scalar, log_n: u32, log_cpus: u32) {
+pub(crate) fn parallel_fft<F: PrimeField>(a: &mut [F], omega: F, log_n: u32, log_cpus: u32) {
     assert!(log_n >= log_cpus);
 
     let num_cpus = 1 << log_cpus;
@@ -407,15 +407,15 @@ pub(crate) fn parallel_fft(a: &mut [Scalar], omega: Scalar, log_n: u32, log_cpus
 
 /// An iterator over the elements of the domain.
 #[derive(Debug)]
-pub struct Elements {
-    cur_elem: Scalar,
+pub struct Elements<F: PrimeField> {
+    cur_elem: F,
     cur_pow: u64,
-    domain: EvaluationDomain,
+    domain: EvaluationDomain<F>,
 }
 
-impl Iterator for Elements {
-    type Item = Scalar;
-    fn next(&mut self) -> Option<Scalar> {
+impl<F: PrimeField> Iterator for Elements<F> {
+    type Item = F;
+    fn next(&mut self) -> Option<F> {
         if self.cur_pow == self.domain.size {
             None
         } else {

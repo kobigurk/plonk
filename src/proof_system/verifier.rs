@@ -3,15 +3,16 @@ use crate::constraint_system::StandardComposer;
 use crate::proof_system::widget::VerifierKey;
 use crate::proof_system::Proof;
 use anyhow::{Error, Result};
-use dusk_bls12_381::Scalar;
 use merlin::Transcript;
+use algebra::PairingEngine;
+
 /// Verifier verifies a proof
 #[allow(missing_debug_implementations)]
-pub struct Verifier {
+pub struct Verifier<E: PairingEngine> {
     /// VerificationKey which is used to verify a specific PLONK circuit
-    pub verifier_key: Option<VerifierKey>,
+    pub verifier_key: Option<VerifierKey<E>>,
 
-    pub(crate) cs: StandardComposer,
+    pub(crate) cs: StandardComposer<E>,
     /// Store the messages exchanged during the preprocessing stage
     /// This is copied each time, we make a proof, so that we can use the same verifier to
     /// Verify multiple proofs from the same circuit. If this is not copied, then the verification procedure will modify
@@ -19,15 +20,15 @@ pub struct Verifier {
     pub preprocessed_transcript: Transcript,
 }
 
-impl Default for Verifier {
-    fn default() -> Verifier {
+impl<E: PairingEngine> Default for Verifier<E> {
+    fn default() -> Verifier::<E> {
         Verifier::new(b"plonk")
     }
 }
 
-impl Verifier {
+impl<E: PairingEngine> Verifier<E> {
     /// Creates a new verifier object
-    pub fn new(label: &'static [u8]) -> Verifier {
+    pub fn new(label: &'static [u8]) -> Verifier<E> {
         Verifier {
             verifier_key: None,
             cs: StandardComposer::new(),
@@ -41,12 +42,12 @@ impl Verifier {
     }
 
     /// Returns a mutable copy of the underlying composer
-    pub fn mut_cs(&mut self) -> &mut StandardComposer {
+    pub fn mut_cs(&mut self) -> &mut StandardComposer<E> {
         &mut self.cs
     }
 
     /// Preprocess a proof
-    pub fn preprocess(&mut self, commit_key: &CommitKey) -> Result<(), Error> {
+    pub fn preprocess(&mut self, commit_key: &CommitKey<E>) -> Result<(), Error> {
         let vk = self
             .cs
             .preprocess_verifier(commit_key, &mut self.preprocessed_transcript)?;
@@ -64,9 +65,9 @@ impl Verifier {
     /// Verifies a proof
     pub fn verify(
         &self,
-        proof: &Proof,
-        opening_key: &OpeningKey,
-        public_inputs: &[Scalar],
+        proof: &Proof<E>,
+        opening_key: &OpeningKey<E>,
+        public_inputs: &[E::Fr],
     ) -> Result<(), Error> {
         let mut cloned_transcript = self.preprocessed_transcript.clone();
         let verifier_key = self.verifier_key.as_ref().unwrap();

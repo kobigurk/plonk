@@ -4,34 +4,33 @@
 use super::{errors::KZG10Errors, AggregateProof, Commitment, Proof};
 use crate::{fft::Polynomial, transcript::TranscriptProtocol, util};
 use anyhow::{Error, Result};
-use dusk_bls12_381::{
-    multiscalar_mul::msm_variable_base, G1Affine, G1Projective, G2Affine, G2Prepared, Scalar,
-};
 use merlin::Transcript;
+use algebra::{PairingEngine, msm::VariableBaseMSM, Zero, One, AffineCurve, ProjectiveCurve, PrimeField, Field};
+use std::ops::Mul;
 
 /// Opening Key is used to verify opening proofs made about a committed polynomial.
 #[derive(Clone, Debug)]
-pub struct OpeningKey {
+pub struct OpeningKey<E: PairingEngine> {
     /// The generator of G1.
-    pub g: G1Affine,
+    pub g: E::G1Affine,
     /// The generator of G2.
-    pub h: G2Affine,
+    pub h: E::G2Affine,
     /// \beta times the above generator of G2.
-    pub beta_h: G2Affine,
+    pub beta_h: E::G2Affine,
     /// The generator of G2, prepared for use in pairings.
-    pub prepared_h: G2Prepared,
+    pub prepared_h: E::G2Prepared,
     /// \beta times the above generator of G2, prepared for use in pairings.
-    pub prepared_beta_h: G2Prepared,
+    pub prepared_beta_h: E::G2Prepared,
 }
 
 /// CommitKey is used to commit to a polynomial which is bounded by the max_degree.
 #[derive(Debug)]
-pub struct CommitKey {
+pub struct CommitKey<E: PairingEngine> {
     /// Group elements of the form `{ \beta^i G }`, where `i` ranges from 0 to `degree`.
-    pub powers_of_g: Vec<G1Affine>,
+    pub powers_of_g: Vec<E::G1Affine>,
 }
 
-impl CommitKey {
+impl<E: PairingEngine> CommitKey<E> {
     /// Returns the maximum degree polynomial that you can commit to.
     pub fn max_degree(&self) -> usize {
         self.powers_of_g.len() - 1
@@ -40,7 +39,7 @@ impl CommitKey {
     /// Truncates the commit key to a lower max degree.
     /// Returns an error if the truncated degree is zero or if the truncated degree
     /// is larger than the max degree of the commit key.
-    pub fn truncate(&self, mut truncated_degree: usize) -> Result<CommitKey, Error> {
+    pub fn truncate(&self, mut truncated_degree: usize) -> Result<CommitKey<E>, Error> {
         if truncated_degree == 1 {
             truncated_degree += 1;
         }
@@ -68,12 +67,15 @@ impl CommitKey {
     /// Commits to a polynomial returning the corresponding `Commitment`.
     ///
     /// Returns an error if the polynomial's degree is more than the max degree of the commit key.
-    pub fn commit(&self, polynomial: &Polynomial) -> Result<Commitment, Error> {
+    pub fn commit(&self, polynomial: &Polynomial<E::Fr>) -> Result<Commitment<E>, Error> {
         // Check whether we can safely commit to this polynomial
         self.check_commit_degree_is_within_bounds(polynomial.degree())?;
 
         // Compute commitment
-        let commitment = msm_variable_base(&self.powers_of_g, &polynomial.coeffs);
+        let commitment = VariableBaseMSM::multi_scalar_mul(
+            &self.powers_of_g,
+            &polynomial.coeffs.iter().map(|c| c.into_repr()).collect::<Vec<_>>(),
+        );
         Ok(Commitment::from_projective(commitment))
     }
 
@@ -83,7 +85,7 @@ impl CommitKey {
     /// However we note that the quotient polynomial is invariant under the value f(z)
     /// ie. only the remainder changes. We can therefore compute the witness as f(x) / x - z
     /// and only use the remainder term f(z) during verification.
-    pub fn compute_single_witness(&self, polynomial: &Polynomial, point: &Scalar) -> Polynomial {
+    pub fn compute_single_witness(&self, polynomial: &Polynomial<E::Fr>, point: &E::Fr) -> Polynomial<E::Fr> {
         // Computes `f(x) / x-z`, returning it as the witness poly
         polynomial.ruffini(*point)
     }
@@ -93,16 +95,16 @@ impl CommitKey {
     /// We apply the same optimisation mentioned in when computing each witness; removing f(z).
     pub(crate) fn compute_aggregate_witness(
         &self,
-        polynomials: &[Polynomial],
-        point: &Scalar,
+        polynomials: &[Polynomial<E::Fr>],
+        point: &E::Fr,
         transcript: &mut Transcript,
-    ) -> Polynomial {
-        let challenge = transcript.challenge_scalar(b"aggregate_witness");
-        let powers = util::powers_of(&challenge, polynomials.len() - 1);
+    ) -> Polynomial<E::Fr> {
+        let challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"aggregate_witness");
+        let powers = util::powers_of::<E::Fr>(&challenge, polynomials.len() - 1);
 
         assert_eq!(powers.len(), polynomials.len());
 
-        let numerator: Polynomial = polynomials
+        let numerator: Polynomial<E::Fr> = polynomials
             .iter()
             .zip(powers.iter())
             .map(|(poly, challenge)| poly * challenge)
@@ -115,10 +117,10 @@ impl CommitKey {
     /// Returns an error if the polynomials degree is too large.
     pub fn open_single(
         &self,
-        polynomial: &Polynomial,
-        value: &Scalar,
-        point: &Scalar,
-    ) -> Result<Proof, Error> {
+        polynomial: &Polynomial<E::Fr>,
+        value: &E::Fr,
+        point: &E::Fr,
+    ) -> Result<Proof<E>, Error> {
         let witness_poly = self.compute_single_witness(polynomial, point);
         Ok(Proof {
             commitment_to_witness: self.commit(&witness_poly)?,
@@ -132,11 +134,11 @@ impl CommitKey {
     /// Returns an error if any of the polynomial's degrees are too large.
     pub fn open_multiple(
         &self,
-        polynomials: &[Polynomial],
-        evaluations: Vec<Scalar>,
-        point: &Scalar,
+        polynomials: &[Polynomial<E::Fr>],
+        evaluations: Vec<E::Fr>,
+        point: &E::Fr,
         transcript: &mut Transcript,
-    ) -> Result<AggregateProof, Error> {
+    ) -> Result<AggregateProof<E>, Error> {
         // Commit to polynomials
         let mut polynomial_commitments = Vec::with_capacity(polynomials.len());
         for poly in polynomials.iter() {
@@ -158,62 +160,60 @@ impl CommitKey {
     }
 }
 
-impl OpeningKey {
+impl<E: PairingEngine> OpeningKey<E> {
     /// Checks that a polynomial `p` was evaluated at a point `z` and returned the value specified `v`.
     /// ie. v = p(z).
-    pub fn check(&self, point: Scalar, proof: Proof) -> bool {
-        let inner_a: G1Affine =
-            (proof.commitment_to_polynomial.0 - (self.g * proof.evaluated_point)).into();
+    pub fn check(&self, point: E::Fr, proof: Proof<E>) -> bool {
+        let inner_a: E::G1Affine =
+            (proof.commitment_to_polynomial.0.into_projective() - &(self.g.mul(proof.evaluated_point.into_repr()))).into();
 
-        let inner_b: G2Affine = (self.beta_h - (self.h * point)).into();
-        let prepared_inner_b = G2Prepared::from(-inner_b);
+        let inner_b: E::G2Affine = (self.beta_h.into_projective() - &(self.h.mul(point.into_repr()))).into();
+        let prepared_inner_b = E::G2Prepared::from(-inner_b);
 
-        let pairing = dusk_bls12_381::multi_miller_loop(&[
-            (&inner_a, &self.prepared_h),
-            (&proof.commitment_to_witness.0, &prepared_inner_b),
-        ])
-        .final_exponentiation();
+        let pairing = E::product_of_pairings(&[
+            (inner_a.into(), self.prepared_h.clone()),
+            (proof.commitment_to_witness.0.into(), prepared_inner_b.clone()),
+        ]);
 
-        pairing == dusk_bls12_381::Gt::identity()
+        pairing == E::Fqk::one()
     }
 
     /// Checks whether a batch of polynomials evaluated at different points, returned their specified value.
     pub fn batch_check(
         &self,
-        points: &[Scalar],
-        proofs: &[Proof],
+        points: &[E::Fr],
+        proofs: &[Proof<E>],
         transcript: &mut Transcript,
     ) -> Result<(), Error> {
-        let mut total_c = G1Projective::identity();
-        let mut total_w = G1Projective::identity();
+        let mut total_c = E::G1Projective::prime_subgroup_generator();
+        let mut total_w = E::G1Projective::prime_subgroup_generator();
 
-        let challenge = transcript.challenge_scalar(b"batch"); // XXX: Verifier can add their own randomness at this point
+        let challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"batch"); // XXX: Verifier can add their own randomness at this point
         let powers = util::powers_of(&challenge, proofs.len() - 1);
         // Instead of multiplying g and gamma_g in each turn, we simply accumulate
         // their coefficients and perform a final multiplication at the end.
-        let mut g_multiplier = Scalar::zero();
+        let mut g_multiplier = E::Fr::zero();
 
         for ((proof, challenge), point) in proofs.iter().zip(powers).zip(points) {
-            let mut c = G1Projective::from(proof.commitment_to_polynomial.0);
+            let mut c = proof.commitment_to_polynomial.0.into_projective();
             let w = proof.commitment_to_witness.0;
-            c += w * point;
-            g_multiplier += challenge * proof.evaluated_point;
+            c += &w.mul(point.into_repr());
+            g_multiplier += &(challenge * &proof.evaluated_point);
 
-            total_c += c * challenge;
-            total_w += w * challenge;
+            total_c += &c.mul(challenge.into_repr());
+            total_w += &w.mul(challenge.into_repr());
         }
-        total_c -= self.g * g_multiplier;
+        total_c -= &self.g.mul(g_multiplier.into_repr());
 
-        let affine_total_w = G1Affine::from(-total_w);
-        let affine_total_c = G1Affine::from(total_c);
+        let affine_total_w = E::G1Affine::from(-total_w);
+        let affine_total_c = E::G1Affine::from(total_c);
 
-        let pairing = dusk_bls12_381::multi_miller_loop(&[
-            (&affine_total_w, &self.prepared_beta_h),
-            (&affine_total_c, &self.prepared_h),
-        ])
-        .final_exponentiation();
+        let pairing = E::product_of_pairings(&[
+            (affine_total_w.into(), self.prepared_beta_h.clone()),
+            (affine_total_c.into(), self.prepared_h.clone()),
+        ]);
 
-        if pairing != dusk_bls12_381::Gt::identity() {
+        if pairing != E::Fqk::one() {
             return Err(KZG10Errors::PairingCheckFailure.into());
         };
         Ok(())

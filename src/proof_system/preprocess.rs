@@ -7,34 +7,34 @@ use crate::constraint_system::StandardComposer;
 use crate::fft::{EvaluationDomain, Evaluations, Polynomial};
 use crate::proof_system::widget;
 use anyhow::{Error, Result};
-use dusk_bls12_381::Scalar;
 use merlin::Transcript;
+use algebra::{PrimeField, PairingEngine, Zero, One};
 
 /// Struct that contains all of the selector and permutation polynomials in PLONK
 /// These polynomials are in coefficient form
-pub(crate) struct SelectorPolynomials {
-    q_m: Polynomial,
-    q_l: Polynomial,
-    q_r: Polynomial,
-    q_o: Polynomial,
-    q_c: Polynomial,
-    q_4: Polynomial,
-    q_arith: Polynomial,
-    q_range: Polynomial,
-    q_logic: Polynomial,
-    q_ecc: Polynomial,
-    left_sigma: Polynomial,
-    right_sigma: Polynomial,
-    out_sigma: Polynomial,
-    fourth_sigma: Polynomial,
+pub(crate) struct SelectorPolynomials<F: PrimeField> {
+    q_m: Polynomial<F>,
+    q_l: Polynomial<F>,
+    q_r: Polynomial<F>,
+    q_o: Polynomial<F>,
+    q_c: Polynomial<F>,
+    q_4: Polynomial<F>,
+    q_arith: Polynomial<F>,
+    q_range: Polynomial<F>,
+    q_logic: Polynomial<F>,
+    //q_ecc: Polynomial<F>,
+    left_sigma: Polynomial<F>,
+    right_sigma: Polynomial<F>,
+    out_sigma: Polynomial<F>,
+    fourth_sigma: Polynomial<F>,
 }
 
-impl StandardComposer {
+impl<E: PairingEngine> StandardComposer<E> {
     /// Pads the circuit to the next power of two
     /// `diff` is the difference between circuit size and next power of two.
     fn pad(&mut self, diff: usize) {
         // Add a zero variable to circuit
-        let zero_scalar = Scalar::zero();
+        let zero_scalar = E::Fr::zero();
         let zero_var = self.add_input(zero_scalar);
 
         let zeroes_scalar = vec![zero_scalar; diff];
@@ -49,7 +49,7 @@ impl StandardComposer {
         self.q_arith.extend(zeroes_scalar.iter());
         self.q_range.extend(zeroes_scalar.iter());
         self.q_logic.extend(zeroes_scalar.iter());
-        self.q_ecc.extend(zeroes_scalar.iter());
+        //self.q_ecc.extend(zeroes_scalar.iter());
 
         self.w_l.extend(zeroes_var.iter());
         self.w_r.extend(zeroes_var.iter());
@@ -71,7 +71,7 @@ impl StandardComposer {
             && self.q_arith.len() == k
             && self.q_range.len() == k
             && self.q_logic.len() == k
-            && self.q_ecc.len() == k
+            //&& self.q_ecc.len() == k
             && self.w_l.len() == k
             && self.w_r.len() == k
             && self.w_o.len() == k
@@ -86,9 +86,9 @@ impl StandardComposer {
     /// in order to seed the transcript, allowing both the prover and verifier to have the same view
     pub fn preprocess_prover(
         &mut self,
-        commit_key: &CommitKey,
+        commit_key: &CommitKey<E>,
         transcript: &mut Transcript,
-    ) -> Result<widget::ProverKey, Error> {
+    ) -> Result<widget::ProverKey<E::Fr>, Error> {
         let (_, selectors, domain) = self.preprocess_shared(commit_key, transcript)?;
 
         let domain_4n = EvaluationDomain::new(4 * domain.size())?;
@@ -110,8 +110,8 @@ impl StandardComposer {
             Evaluations::from_vec_and_domain(domain_4n.coset_fft(&selectors.q_range), domain_4n);
         let q_logic_eval_4n =
             Evaluations::from_vec_and_domain(domain_4n.coset_fft(&selectors.q_logic), domain_4n);
-        let q_ecc_eval_4n =
-            Evaluations::from_vec_and_domain(domain_4n.coset_fft(&selectors.q_ecc), domain_4n);
+        //let q_ecc_eval_4n =
+        //    Evaluations::from_vec_and_domain(domain_4n.coset_fft(&selectors.q_ecc), domain_4n);
 
         let left_sigma_eval_4n =
             Evaluations::from_vec_and_domain(domain_4n.coset_fft(&selectors.left_sigma), domain_4n);
@@ -127,7 +127,7 @@ impl StandardComposer {
         );
         // XXX: Remove this and compute it on the fly
         let linear_eval_4n = Evaluations::from_vec_and_domain(
-            domain_4n.coset_fft(&[Scalar::zero(), Scalar::one()]),
+            domain_4n.coset_fft(&[E::Fr::zero(), E::Fr::one()]),
             domain_4n,
         );
 
@@ -153,6 +153,7 @@ impl StandardComposer {
             q_logic: (selectors.q_logic, q_logic_eval_4n),
         };
 
+        /*
         // Prover Key for ecc circuits
         let ecc_prover_key = widget::ecc::ProverKey {
             q_l: (selectors.q_l, q_l_eval_4n),
@@ -160,6 +161,7 @@ impl StandardComposer {
             q_c: (selectors.q_c, q_c_eval_4n),
             q_ecc: (selectors.q_ecc, q_ecc_eval_4n),
         };
+         */
 
         // Prover Key for permutation argument
         let permutation_prover_key = widget::permutation::ProverKey {
@@ -175,7 +177,7 @@ impl StandardComposer {
             logic: logic_prover_key,
             range: range_prover_key,
             permutation: permutation_prover_key,
-            ecc: ecc_prover_key,
+            //ecc: ecc_prover_key,
             // Compute 4n evaluations for X^n -1
             v_h_coset_4n: domain_4n.compute_vanishing_poly_over_coset(domain.size() as u64),
         };
@@ -187,9 +189,9 @@ impl StandardComposer {
     /// needed to compute the 4n evaluations
     pub fn preprocess_verifier(
         &mut self,
-        commit_key: &CommitKey,
+        commit_key: &CommitKey<E>,
         transcript: &mut Transcript,
-    ) -> Result<widget::VerifierKey, Error> {
+    ) -> Result<widget::VerifierKey<E>, Error> {
         let (verifier_key, _, _) = self.preprocess_shared(commit_key, transcript)?;
         Ok(verifier_key)
     }
@@ -197,9 +199,9 @@ impl StandardComposer {
     // In order to commit to them and have the same transcript view
     fn preprocess_shared(
         &mut self,
-        commit_key: &CommitKey,
+        commit_key: &CommitKey<E>,
         transcript: &mut Transcript,
-    ) -> Result<(widget::VerifierKey, SelectorPolynomials, EvaluationDomain), Error> {
+    ) -> Result<(widget::VerifierKey<E>, SelectorPolynomials<E::Fr>, EvaluationDomain<E::Fr>), Error> {
         let domain = EvaluationDomain::new(self.circuit_size())?;
 
         // Check that the length of the wires is consistent.
@@ -217,7 +219,7 @@ impl StandardComposer {
         let q_arith_poly = Polynomial::from_coefficients_slice(&domain.ifft(&self.q_arith));
         let q_range_poly = Polynomial::from_coefficients_slice(&domain.ifft(&self.q_range));
         let q_logic_poly = Polynomial::from_coefficients_slice(&domain.ifft(&self.q_logic));
-        let q_ecc_poly = Polynomial::from_coefficients_slice(&domain.ifft(&self.q_ecc));
+        //let q_ecc_poly = Polynomial::from_coefficients_slice(&domain.ifft(&self.q_ecc));
 
         // 2. Compute the sigma polynomials
         let (left_sigma_poly, right_sigma_poly, out_sigma_poly, fourth_sigma_poly) =
@@ -232,7 +234,7 @@ impl StandardComposer {
         let q_arith_poly_commit = commit_key.commit(&q_arith_poly).unwrap_or_default();
         let q_range_poly_commit = commit_key.commit(&q_range_poly).unwrap_or_default();
         let q_logic_poly_commit = commit_key.commit(&q_logic_poly).unwrap_or_default();
-        let q_ecc_poly_commit = commit_key.commit(&q_ecc_poly).unwrap_or_default();
+        //let q_ecc_poly_commit = commit_key.commit(&q_ecc_poly).unwrap_or_default();
 
         let left_sigma_poly_commit = commit_key.commit(&left_sigma_poly)?;
         let right_sigma_poly_commit = commit_key.commit(&right_sigma_poly)?;
@@ -258,12 +260,14 @@ impl StandardComposer {
             q_c: q_c_poly_commit,
             q_logic: q_logic_poly_commit,
         };
+        /*
         // Verifier Key for ecc circuits
         let ecc_verifier_key = widget::ecc::VerifierKey {
             q_l: q_l_poly_commit,
             q_r: q_r_poly_commit,
             q_ecc: q_ecc_poly_commit,
         };
+         */
         // Verifier Key for permutation argument
         let permutation_verifier_key = widget::permutation::VerifierKey {
             left_sigma: left_sigma_poly_commit,
@@ -277,7 +281,7 @@ impl StandardComposer {
             arithmetic: arithmetic_verifier_key,
             logic: logic_verifier_key,
             range: range_verifier_key,
-            ecc: ecc_verifier_key,
+            //ecc: ecc_verifier_key,
             permutation: permutation_verifier_key,
         };
 
@@ -291,7 +295,7 @@ impl StandardComposer {
             q_arith: q_arith_poly,
             q_range: q_range_poly,
             q_logic: q_logic_poly,
-            q_ecc: q_ecc_poly,
+            //q_ecc: q_ecc_poly,
             left_sigma: left_sigma_poly,
             right_sigma: right_sigma_poly,
             out_sigma: out_sigma_poly,

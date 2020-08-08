@@ -15,42 +15,42 @@
 
 use crate::constraint_system::Variable;
 use crate::permutation::Permutation;
-use dusk_bls12_381::Scalar;
 use std::collections::HashMap;
+use algebra::{PrimeField, PairingEngine, Zero, One, Field, AffineCurve, ProjectiveCurve};
 
 /// A composer is a circuit builder
 /// and will dictate how a circuit is built
 /// We will have a default Composer called `StandardComposer`
 #[derive(Debug)]
-pub struct StandardComposer {
+pub struct StandardComposer<E: PairingEngine> {
     // n represents the number of arithmetic gates in the circuit
     pub(crate) n: usize,
 
     // Selector vectors
     //
     // Multiplier selector
-    pub(crate) q_m: Vec<Scalar>,
+    pub(crate) q_m: Vec<E::Fr>,
     // Left wire selector
-    pub(crate) q_l: Vec<Scalar>,
+    pub(crate) q_l: Vec<E::Fr>,
     // Right wire selector
-    pub(crate) q_r: Vec<Scalar>,
+    pub(crate) q_r: Vec<E::Fr>,
     // output wire selector
-    pub(crate) q_o: Vec<Scalar>,
+    pub(crate) q_o: Vec<E::Fr>,
     // fourth wire selector
-    pub(crate) q_4: Vec<Scalar>,
+    pub(crate) q_4: Vec<E::Fr>,
     // constant wire selector
-    pub(crate) q_c: Vec<Scalar>,
+    pub(crate) q_c: Vec<E::Fr>,
     // arithmetic wire selector
-    pub(crate) q_arith: Vec<Scalar>,
+    pub(crate) q_arith: Vec<E::Fr>,
     // range selector
-    pub(crate) q_range: Vec<Scalar>,
+    pub(crate) q_range: Vec<E::Fr>,
     // logic selector
-    pub(crate) q_logic: Vec<Scalar>,
+    pub(crate) q_logic: Vec<E::Fr>,
     // ecc selector
-    pub(crate) q_ecc: Vec<Scalar>,
+    //pub(crate) q_ecc: Vec<E::Fr>,
 
     /// Public inputs vector
-    pub public_inputs: Vec<Scalar>,
+    pub public_inputs: Vec<E::Fr>,
 
     // witness vectors
     pub(crate) w_l: Vec<Variable>,
@@ -66,25 +66,25 @@ pub struct StandardComposer {
 
     // These are the actual variable values
     // N.B. They should not be exposed to the end user once added into the composer
-    pub(crate) variables: HashMap<Variable, Scalar>,
+    pub(crate) variables: HashMap<Variable, E::Fr>,
 
-    pub(crate) perm: Permutation,
+    pub(crate) perm: Permutation<E::Fr>,
 }
 
-impl StandardComposer {
+impl<E: PairingEngine> StandardComposer<E> {
     /// Returns the number of gates in the circuit
     pub fn circuit_size(&self) -> usize {
         self.n
     }
 }
 
-impl Default for StandardComposer {
+impl<E: PairingEngine> Default for StandardComposer<E> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl StandardComposer {
+impl<E: PairingEngine> StandardComposer<E> {
     /// Generates a new empty `StandardComposer` with all of it's fields
     /// set to hold an initial capacity of 0.
     ///
@@ -103,17 +103,17 @@ impl StandardComposer {
     /// We must assign the fourth value to another value, we then fix this value to be zero.
     /// However, the verifier needs to be able to verify that this value is also zero.
     /// We therefore must make this zero value a part of the circuit description of every circuit.
-    pub fn add_witness_to_circuit_description(&mut self, var: Variable, value: Scalar) {
+    pub fn add_witness_to_circuit_description(&mut self, var: Variable, value: E::Fr) {
         self.poly_gate(
             var,
             var,
             var,
-            Scalar::zero(),
-            Scalar::one(),
-            Scalar::zero(),
-            Scalar::zero(),
+            E::Fr::zero(),
+            E::Fr::one(),
+            E::Fr::zero(),
+            E::Fr::zero(),
             -value,
-            Scalar::zero(),
+            E::Fr::zero(),
         );
     }
 
@@ -134,7 +134,7 @@ impl StandardComposer {
             q_arith: Vec::with_capacity(expected_size),
             q_range: Vec::with_capacity(expected_size),
             q_logic: Vec::with_capacity(expected_size),
-            q_ecc: Vec::with_capacity(expected_size),
+            //q_ecc: Vec::with_capacity(expected_size),
             public_inputs: Vec::with_capacity(expected_size),
 
             w_l: Vec::with_capacity(expected_size),
@@ -150,8 +150,8 @@ impl StandardComposer {
         };
 
         // Reserve the first variable to be zero
-        let zero_var = composer.add_input(Scalar::zero());
-        composer.add_witness_to_circuit_description(zero_var, Scalar::zero());
+        let zero_var = composer.add_input(E::Fr::zero());
+        composer.add_witness_to_circuit_description(zero_var, E::Fr::zero());
         composer.zero_var = zero_var;
 
         // Add dummy constraints
@@ -164,7 +164,7 @@ impl StandardComposer {
     /// to generate and allocate a new variable `var`.
     /// The composer then links the Variable to the Scalar
     /// and returns the Variable for use in the system.
-    pub fn add_input(&mut self, s: Scalar) -> Variable {
+    pub fn add_input(&mut self, s: E::Fr) -> Variable {
         // Get a new Variable from the permutation
         let var = self.perm.new_variable();
         // The composer now links the Scalar to the Variable returned from the Permutation
@@ -179,12 +179,12 @@ impl StandardComposer {
     ///
     /// This makes easier to work with Public Inputs, since they can just be
     /// used as witnesses constrained to a fixed value.
-    pub fn add_constant_witness(&mut self, s: Scalar) -> Variable {
+    pub fn add_constant_witness(&mut self, s: E::Fr) -> Variable {
         // Allocate and link the Variable and the Scalar values in the
         // `Permutation` struct.
         let var = self.add_input(s);
         // We constraint the witness to be equal to a certain constant value.
-        self.constrain_to_constant(var, s, Scalar::zero());
+        self.constrain_to_constant(var, s, E::Fr::zero());
         var
     }
 
@@ -201,12 +201,12 @@ impl StandardComposer {
         a: Variable,
         b: Variable,
         c: Variable,
-        q_m: Scalar,
-        q_l: Scalar,
-        q_r: Scalar,
-        q_o: Scalar,
-        q_c: Scalar,
-        pi: Scalar,
+        q_m: E::Fr,
+        q_l: E::Fr,
+        q_r: E::Fr,
+        q_o: E::Fr,
+        q_c: E::Fr,
+        pi: E::Fr,
     ) -> (Variable, Variable, Variable) {
         self.w_l.push(a);
         self.w_r.push(b);
@@ -219,12 +219,12 @@ impl StandardComposer {
         self.q_m.push(q_m);
         self.q_o.push(q_o);
         self.q_c.push(q_c);
-        self.q_4.push(Scalar::zero());
-        self.q_arith.push(Scalar::one());
+        self.q_4.push(E::Fr::zero());
+        self.q_arith.push(E::Fr::one());
 
-        self.q_range.push(Scalar::zero());
-        self.q_logic.push(Scalar::zero());
-        self.q_ecc.push(Scalar::zero());
+        self.q_range.push(E::Fr::zero());
+        self.q_logic.push(E::Fr::zero());
+        //self.q_ecc.push(E::Fr::zero());
 
         self.public_inputs.push(pi);
 
@@ -237,15 +237,15 @@ impl StandardComposer {
 
     /// Adds a gate which is designed to constrain a `Variable` to have
     /// a specific constant value which is sent as a `Scalar`.
-    pub fn constrain_to_constant(&mut self, a: Variable, constant: Scalar, pi: Scalar) {
+    pub fn constrain_to_constant(&mut self, a: Variable, constant: E::Fr, pi: E::Fr) {
         self.poly_gate(
             a,
             a,
             a,
-            Scalar::zero(),
-            Scalar::one(),
-            Scalar::zero(),
-            Scalar::zero(),
+            E::Fr::zero(),
+            E::Fr::one(),
+            E::Fr::zero(),
+            E::Fr::zero(),
             -constant,
             pi,
         );
@@ -258,12 +258,12 @@ impl StandardComposer {
             a,
             b,
             self.zero_var,
-            Scalar::zero(),
-            Scalar::one(),
-            -Scalar::one(),
-            Scalar::zero(),
-            Scalar::zero(),
-            Scalar::zero(),
+            E::Fr::zero(),
+            E::Fr::one(),
+            E::Fr::one(),
+            E::Fr::zero(),
+            E::Fr::zero(),
+            E::Fr::zero(),
         );
     }
 
@@ -272,21 +272,21 @@ impl StandardComposer {
     /// XXX: We could add another section to add random witness variables, with selector polynomials all zero
     pub fn add_dummy_constraints(&mut self) {
         // Add a dummy constraint so that we do not have zero polynomials
-        self.q_m.push(Scalar::from(1));
-        self.q_l.push(Scalar::from(2));
-        self.q_r.push(Scalar::from(3));
-        self.q_o.push(Scalar::from(4));
-        self.q_c.push(Scalar::from(4));
-        self.q_4.push(Scalar::one());
-        self.q_arith.push(Scalar::one());
-        self.q_range.push(Scalar::zero());
-        self.q_logic.push(Scalar::zero());
-        self.q_ecc.push(Scalar::zero());
-        self.public_inputs.push(Scalar::zero());
-        let var_six = self.add_input(Scalar::from(6));
-        let var_one = self.add_input(Scalar::from(1));
-        let var_seven = self.add_input(Scalar::from(7));
-        let var_min_twenty = self.add_input(-Scalar::from(20));
+        self.q_m.push(<E::Fr as From<u64>>::from(1));
+        self.q_l.push(<E::Fr as From<u64>>::from(2));
+        self.q_r.push(<E::Fr as From<u64>>::from(3));
+        self.q_o.push(<E::Fr as From<u64>>::from(4));
+        self.q_c.push(<E::Fr as From<u64>>::from(4));
+        self.q_4.push(E::Fr::one());
+        self.q_arith.push(E::Fr::one());
+        self.q_range.push(E::Fr::zero());
+        self.q_logic.push(E::Fr::zero());
+        //self.q_ecc.push(E::Fr::zero());
+        self.public_inputs.push(E::Fr::zero());
+        let var_six = self.add_input(<E::Fr as From<u64>>::from(6));
+        let var_one = self.add_input(<E::Fr as From<u64>>::from(1));
+        let var_seven = self.add_input(<E::Fr as From<u64>>::from(7));
+        let var_min_twenty = self.add_input(-<E::Fr as From<u64>>::from(20));
         self.w_l.push(var_six);
         self.w_r.push(var_seven);
         self.w_o.push(var_min_twenty);
@@ -295,17 +295,17 @@ impl StandardComposer {
             .add_variables_to_map(var_six, var_seven, var_min_twenty, var_one, self.n);
         self.n += 1;
         //Add another dummy constraint so that we do not get the identity permutation
-        self.q_m.push(Scalar::from(1));
-        self.q_l.push(Scalar::from(1));
-        self.q_r.push(Scalar::from(1));
-        self.q_o.push(Scalar::from(1));
-        self.q_c.push(Scalar::from(127));
-        self.q_4.push(Scalar::zero());
-        self.q_arith.push(Scalar::one());
-        self.q_range.push(Scalar::zero());
-        self.q_logic.push(Scalar::zero());
-        self.q_ecc.push(Scalar::zero());
-        self.public_inputs.push(Scalar::zero());
+        self.q_m.push(<E::Fr as From<u64>>::from(1u64));
+        self.q_l.push(<E::Fr as From<u64>>::from(1u64));
+        self.q_r.push(<E::Fr as From<u64>>::from(1u64));
+        self.q_o.push(<E::Fr as From<u64>>::from(1u64));
+        self.q_c.push(<E::Fr as From<u64>>::from(127u64));
+        self.q_4.push(E::Fr::zero());
+        self.q_arith.push(E::Fr::one());
+        self.q_range.push(E::Fr::zero());
+        self.q_logic.push(E::Fr::zero());
+        //self.q_ecc.push(E::Fr::zero());
+        self.public_inputs.push(E::Fr::zero());
         self.w_l.push(var_min_twenty);
         self.w_r.push(var_six);
         self.w_o.push(var_seven);
@@ -321,34 +321,34 @@ impl StandardComposer {
     /// XXX: This is messy and will be removed in a later PR.
     #[cfg(feature = "trace")]
     pub fn check_circuit_satisfied(&self) {
-        let w_l: Vec<&Scalar> = self
+        let w_l: Vec<&F> = self
             .w_l
             .iter()
             .map(|w_l_i| self.variables.get(&w_l_i).unwrap())
             .collect();
-        let w_r: Vec<&Scalar> = self
+        let w_r: Vec<&F> = self
             .w_r
             .iter()
             .map(|w_r_i| self.variables.get(&w_r_i).unwrap())
             .collect();
-        let w_o: Vec<&Scalar> = self
+        let w_o: Vec<&F> = self
             .w_o
             .iter()
             .map(|w_o_i| self.variables.get(&w_o_i).unwrap())
             .collect();
-        let w_4: Vec<&Scalar> = self
+        let w_4: Vec<&F> = self
             .w_4
             .iter()
             .map(|w_4_i| self.variables.get(&w_4_i).unwrap())
             .collect();
         // Computes f(f-1)(f-2)(f-3)
-        let delta = |f: Scalar| -> Scalar {
-            let f_1 = f - Scalar::one();
-            let f_2 = f - Scalar::from(2);
-            let f_3 = f - Scalar::from(3);
-            f * f_1 * f_2 * f_3
+        let delta = |f: E::Fr| -> F {
+            let f_1 = f - &F::one();
+            let f_2 = f - &<E::Fr as From<u64>>::from(2);
+            let f_3 = f - &<E::Fr as From<u64>>::from(3);
+            f * &f_1 * &f_2 * &f_3
         };
-        let four = Scalar::from(4);
+        let four = E::Fr::from(4);
         for i in 0..self.n {
             let qm = self.q_m[i];
             let ql = self.q_l[i];
@@ -359,7 +359,7 @@ impl StandardComposer {
             let qarith = self.q_arith[i];
             let qrange = self.q_range[i];
             let qlogic = self.q_logic[i];
-            let qecc = self.q_ecc[i];
+            //let qecc = self.q_ecc[i];
             let pi = self.public_inputs[i];
 
             let a = w_l[i];
@@ -383,7 +383,6 @@ impl StandardComposer {
             - q_arith -> {:?}\n
             - q_range -> {:?}\n
             - q_logic -> {:?}\n
-            - q_ecc -> {:?}\n
             # Witness polynomials:\n
             - w_l -> {:?}\n
             - w_r -> {:?}\n
@@ -397,10 +396,10 @@ impl StandardComposer {
                         + delta(a_next - four * a)
                         + delta(b_next - four * b)
                         + delta(d_next - four * d)
-                        + match (qlogic == Scalar::one(), qlogic == -Scalar::one()) {
+                        + match (qlogic == F::one(), qlogic == -F::one()) {
                             (true, false) => (a & b) - d,
                             (false, true) => (a ^ b) - d,
-                            (false, false) => Scalar::zero(),
+                            (false, false) => E::Fr::zero(),
                             _ => unreachable!(),
                         })
                 + qrange
@@ -409,7 +408,7 @@ impl StandardComposer {
                         + delta(a - four * b)
                         + delta(d_next - four * a));
 
-            assert_eq!(k, Scalar::zero(), "Check failed at gate {}", i,);
+            assert_eq!(k, E::Fr::zero(), "Check failed at gate {}", i,);
         }
     }
 }

@@ -140,7 +140,7 @@ pub fn curve_addition(composer: &mut StandardComposer, point_a: Point, point_b: 
         .variables
         .get(&x_denominator)
         .unwrap()
-        .invert()
+        .inverse()
         .unwrap();
     let inv_x_denom = composer.add_input(inv_x_denom);
 
@@ -167,7 +167,7 @@ pub fn curve_addition(composer: &mut StandardComposer, point_a: Point, point_b: 
         .variables
         .get(&y_denominator)
         .unwrap()
-        .invert()
+        .inverse()
         .unwrap();
     let inv_y_denom = composer.add_input(inv_y_denom);
     // Assert that we actually have the inverse
@@ -229,7 +229,7 @@ pub fn scalar_mul(
     let mut scalar_acc: Vec<BlsScalar> = Vec::new();
     scalar_acc.push(BlsScalar::zero());
     let mut point_acc: Vec<AffinePoint> = Vec::new();
-    point_acc.push(AffinePoint::identity());
+    point_acc.push(AffinePoint::one());
 
     // Auxillary point to help with checks on the backend
     let mut xy_alphas = Vec::new();
@@ -238,7 +238,7 @@ pub fn scalar_mul(
     for (i, entry) in wnaf_entries.iter().rev().enumerate() {
         // Based on the WNAF, we decide what scalar and point to add
         let (scalar_to_add, point_to_add) = match entry {
-            0 => { (BlsScalar::zero(), AffinePoint::identity())},
+            0 => { (BlsScalar::zero(), AffinePoint::one())},
             -1 => {(BlsScalar::one().neg(), -point_multiples[i])},
             1 => {(BlsScalar::one(), point_multiples[i])},
             _ => unreachable!("Currently WNAF_2(k) is supported. The possible values are 1, -1 and 0. Current entry is {}", entry),

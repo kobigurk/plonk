@@ -2,7 +2,6 @@
 //! Where each coefficient is represented using a position in the underlying vector.
 use super::{EvaluationDomain, Evaluations};
 use crate::util;
-use dusk_bls12_381::Scalar;
 use rand::Rng;
 use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
@@ -12,26 +11,26 @@ use std::ops::{Add, AddAssign, Deref, DerefMut, Mul, Neg, Sub, SubAssign};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 /// Polynomial represents a polynomial in coeffiient form.
-pub struct Polynomial {
+pub struct Polynomial<F: PrimeField> {
     /// The coefficient of `x^i` is stored at location `i` in `self.coeffs`.
-    pub coeffs: Vec<Scalar>,
+    pub coeffs: Vec<F>,
 }
 
-impl Deref for Polynomial {
-    type Target = [Scalar];
+impl<F: PrimeField> Deref for Polynomial<F> {
+    type Target = [F];
 
-    fn deref(&self) -> &[Scalar] {
+    fn deref(&self) -> &[F] {
         &self.coeffs
     }
 }
 
-impl DerefMut for Polynomial {
-    fn deref_mut(&mut self) -> &mut [Scalar] {
+impl<F: PrimeField> DerefMut for Polynomial<F> {
+    fn deref_mut(&mut self) -> &mut [F] {
         &mut self.coeffs
     }
 }
 
-impl Polynomial {
+impl<F: PrimeField> Polynomial<F> {
     /// Returns the zero polynomial.
     pub fn zero() -> Self {
         Self { coeffs: Vec::new() }
@@ -39,11 +38,11 @@ impl Polynomial {
 
     /// Checks if the given polynomial is zero.
     pub fn is_zero(&self) -> bool {
-        self.coeffs.is_empty() || self.coeffs.par_iter().all(|coeff| coeff == &Scalar::zero())
+        self.coeffs.is_empty() || self.coeffs.par_iter().all(|coeff| coeff == &F::zero())
     }
 
     /// Constructs a new polynomial from a list of coefficients.
-    pub fn from_coefficients_slice(coeffs: &[Scalar]) -> Self {
+    pub fn from_coefficients_slice(coeffs: &[F]) -> Self {
         Self::from_coefficients_vec(coeffs.to_vec())
     }
 
@@ -51,7 +50,7 @@ impl Polynomial {
     ///
     /// # Panics
     /// When the length of the coeffs is zero.
-    pub fn from_coefficients_vec(coeffs: Vec<Scalar>) -> Self {
+    pub fn from_coefficients_vec(coeffs: Vec<F>) -> Self {
         let mut result = Self { coeffs };
         // While there are zeros at the end of the coefficient vector, pop them off.
         result.truncate_leading_zeros();
@@ -60,7 +59,7 @@ impl Polynomial {
         assert!(result
             .coeffs
             .last()
-            .map_or(true, |coeff| coeff != &Scalar::zero()));
+            .map_or(true, |coeff| coeff != &F::zero()));
 
         result
     }
@@ -73,19 +72,19 @@ impl Polynomial {
         assert!(self
             .coeffs
             .last()
-            .map_or(false, |coeff| coeff != &Scalar::zero()));
+            .map_or(false, |coeff| coeff != &F::zero()));
         self.coeffs.len() - 1
     }
 
     fn truncate_leading_zeros(&mut self) {
-        while self.coeffs.last().map_or(false, |c| c == &Scalar::zero()) {
+        while self.coeffs.last().map_or(false, |c| c == &F::zero()) {
             self.coeffs.pop();
         }
     }
     /// Evaluates `self` at the given `point` in the field.
-    pub fn evaluate(&self, point: &Scalar) -> Scalar {
+    pub fn evaluate(&self, point: &F) -> F {
         if self.is_zero() {
-            return Scalar::zero();
+            return F::zero();
         }
 
         // Compute powers of points
@@ -96,7 +95,7 @@ impl Polynomial {
             .zip(powers.into_par_iter())
             .map(|(c, p)| p * c)
             .collect();
-        let mut sum = Scalar::zero();
+        let mut sum = F::zero();
         for eval in p_evals.into_iter() {
             sum += &eval;
         }
@@ -115,13 +114,14 @@ impl Polynomial {
 }
 
 use std::iter::Sum;
+use algebra::PrimeField;
 
-impl Sum for Polynomial {
+impl<F: PrimeField> Sum for Polynomial<F> {
     fn sum<I>(iter: I) -> Self
     where
         I: Iterator<Item = Self>,
     {
-        let sum: Polynomial = iter.fold(Polynomial::zero(), |mut res, val| {
+        let sum: Polynomial<F> = iter.fold(Polynomial::zero(), |mut res, val| {
             res = &res + &val;
             res
         });
@@ -129,10 +129,10 @@ impl Sum for Polynomial {
     }
 }
 
-impl<'a, 'b> Add<&'a Polynomial> for &'b Polynomial {
-    type Output = Polynomial;
+impl<'a, 'b, F: PrimeField> Add<&'a Polynomial<F>> for &'b Polynomial<F> {
+    type Output = Polynomial<F>;
 
-    fn add(self, other: &'a Polynomial) -> Polynomial {
+    fn add(self, other: &'a Polynomial<F>) -> Polynomial<F> {
         let mut result = if self.is_zero() {
             other.clone()
         } else if other.is_zero() {
@@ -158,7 +158,7 @@ impl<'a, 'b> Add<&'a Polynomial> for &'b Polynomial {
 #[allow(dead_code)]
 // Addition method tht uses iterators to add polynomials
 // Benchmark this against the original method
-fn iter_add(poly_a: &Polynomial, poly_b: &Polynomial) -> Polynomial {
+fn iter_add<F: PrimeField>(poly_a: &Polynomial<F>, poly_b: &Polynomial<F>) -> Polynomial<F> {
     if poly_a.len() == 0 {
         return poly_b.clone();
     }
@@ -188,8 +188,8 @@ fn iter_add(poly_a: &Polynomial, poly_b: &Polynomial) -> Polynomial {
     result
 }
 
-impl<'a, 'b> AddAssign<&'a Polynomial> for Polynomial {
-    fn add_assign(&mut self, other: &'a Polynomial) {
+impl<'a, 'b, F: PrimeField> AddAssign<&'a Polynomial<F>> for Polynomial<F> {
+    fn add_assign(&mut self, other: &'a Polynomial<F>) {
         if self.is_zero() {
             self.coeffs.truncate(0);
             self.coeffs.extend_from_slice(&other.coeffs);
@@ -200,7 +200,7 @@ impl<'a, 'b> AddAssign<&'a Polynomial> for Polynomial {
             }
         } else {
             // Add the necessary number of zero coefficients.
-            self.coeffs.resize(other.coeffs.len(), Scalar::zero());
+            self.coeffs.resize(other.coeffs.len(), F::zero());
             for (a, b) in self.coeffs.iter_mut().zip(&other.coeffs) {
                 *a += b
             }
@@ -209,8 +209,8 @@ impl<'a, 'b> AddAssign<&'a Polynomial> for Polynomial {
     }
 }
 
-impl<'a, 'b> AddAssign<(Scalar, &'a Polynomial)> for Polynomial {
-    fn add_assign(&mut self, (f, other): (Scalar, &'a Polynomial)) {
+impl<'a, 'b, F: PrimeField> AddAssign<(F, &'a Polynomial<F>)> for Polynomial<F> {
+    fn add_assign(&mut self, (f, other): (F, &'a Polynomial<F>)) {
         if self.is_zero() {
             self.coeffs.truncate(0);
             self.coeffs.extend_from_slice(&other.coeffs);
@@ -222,7 +222,7 @@ impl<'a, 'b> AddAssign<(Scalar, &'a Polynomial)> for Polynomial {
             }
         } else {
             // Add the necessary number of zero coefficients.
-            self.coeffs.resize(other.coeffs.len(), Scalar::zero());
+            self.coeffs.resize(other.coeffs.len(), F::zero());
             for (a, b) in self.coeffs.iter_mut().zip(&other.coeffs) {
                 *a += &(f * b);
             }
@@ -231,11 +231,11 @@ impl<'a, 'b> AddAssign<(Scalar, &'a Polynomial)> for Polynomial {
     }
 }
 
-impl Neg for Polynomial {
-    type Output = Polynomial;
+impl<F: PrimeField> Neg for Polynomial<F> {
+    type Output = Polynomial<F>;
 
     #[inline]
-    fn neg(mut self) -> Polynomial {
+    fn neg(mut self) -> Polynomial<F> {
         for coeff in &mut self.coeffs {
             *coeff = -*coeff;
         }
@@ -243,11 +243,11 @@ impl Neg for Polynomial {
     }
 }
 
-impl<'a, 'b> Sub<&'a Polynomial> for &'b Polynomial {
-    type Output = Polynomial;
+impl<'a, 'b, F: PrimeField> Sub<&'a Polynomial<F>> for &'b Polynomial<F> {
+    type Output = Polynomial<F>;
 
     #[inline]
-    fn sub(self, other: &'a Polynomial) -> Polynomial {
+    fn sub(self, other: &'a Polynomial<F>) -> Polynomial<F> {
         let mut result = if self.is_zero() {
             let mut result = other.clone();
             for coeff in &mut result.coeffs {
@@ -264,7 +264,7 @@ impl<'a, 'b> Sub<&'a Polynomial> for &'b Polynomial {
             result
         } else {
             let mut result = self.clone();
-            result.coeffs.resize(other.coeffs.len(), Scalar::zero());
+            result.coeffs.resize(other.coeffs.len(), F::zero());
             for (a, b) in result.coeffs.iter_mut().zip(&other.coeffs) {
                 *a -= b;
             }
@@ -275,11 +275,11 @@ impl<'a, 'b> Sub<&'a Polynomial> for &'b Polynomial {
     }
 }
 
-impl<'a, 'b> SubAssign<&'a Polynomial> for Polynomial {
+impl<'a, 'b, F: PrimeField> SubAssign<&'a Polynomial<F>> for Polynomial<F> {
     #[inline]
-    fn sub_assign(&mut self, other: &'a Polynomial) {
+    fn sub_assign(&mut self, other: &'a Polynomial<F>) {
         if self.is_zero() {
-            self.coeffs.resize(other.coeffs.len(), Scalar::zero());
+            self.coeffs.resize(other.coeffs.len(), F::zero());
             for (i, coeff) in other.coeffs.iter().enumerate() {
                 self.coeffs[i] -= coeff;
             }
@@ -290,7 +290,7 @@ impl<'a, 'b> SubAssign<&'a Polynomial> for Polynomial {
             }
         } else {
             // Add the necessary number of zero coefficients.
-            self.coeffs.resize(other.coeffs.len(), Scalar::zero());
+            self.coeffs.resize(other.coeffs.len(), F::zero());
             for (a, b) in self.coeffs.iter_mut().zip(&other.coeffs) {
                 *a -= b
             }
@@ -300,32 +300,32 @@ impl<'a, 'b> SubAssign<&'a Polynomial> for Polynomial {
     }
 }
 
-impl Polynomial {
+impl<F: PrimeField> Polynomial<F> {
     #[allow(dead_code)]
     #[inline]
-    fn leading_coefficient(&self) -> Option<&Scalar> {
+    fn leading_coefficient(&self) -> Option<&F> {
         self.last()
     }
 
     #[allow(dead_code)]
     #[inline]
-    fn iter_with_index(&self) -> Vec<(usize, Scalar)> {
+    fn iter_with_index(&self) -> Vec<(usize, F)> {
         self.iter().cloned().enumerate().collect()
     }
 
     /// Divides `self` by x-z using Ruffinis method
-    pub fn ruffini(&self, z: Scalar) -> Polynomial {
-        let mut quotient: Vec<Scalar> = Vec::with_capacity(self.degree());
-        let mut k = Scalar::zero();
+    pub fn ruffini(&self, z: F) -> Polynomial<F> {
+        let mut quotient: Vec<F> = Vec::with_capacity(self.degree());
+        let mut k = F::zero();
 
         // Reverse the results and use Ruffini's method to compute the quotient
         // The coefficients must be reversed as Ruffini's method
         // starts with the leading coefficient, while Polynomials
         // are stored in increasing order i.e. the leading coefficient is the last element
         for coeff in self.coeffs.iter().rev() {
-            let t = coeff + k;
+            let t = *coeff + &k;
             quotient.push(t);
-            k = z * t;
+            k = z * &t;
         }
 
         // Pop off the last element, it is the remainder term
@@ -339,11 +339,11 @@ impl Polynomial {
 }
 
 /// Performs O(nlogn) multiplication of polynomials if F is smooth.
-impl<'a, 'b> Mul<&'a Polynomial> for &'b Polynomial {
-    type Output = Polynomial;
+impl<'a, 'b, F: PrimeField> Mul<&'a Polynomial<F>> for &'b Polynomial<F> {
+    type Output = Polynomial<F>;
 
     #[inline]
-    fn mul(self, other: &'a Polynomial) -> Polynomial {
+    fn mul(self, other: &'a Polynomial<F>) -> Polynomial<F> {
         if self.is_zero() || other.is_zero() {
             Polynomial::zero()
         } else {
@@ -357,33 +357,33 @@ impl<'a, 'b> Mul<&'a Polynomial> for &'b Polynomial {
     }
 }
 /// Convenience Trait to multiply a scalar and polynomial
-impl<'a, 'b> Mul<&'a Scalar> for &'b Polynomial {
-    type Output = Polynomial;
+impl<'a, 'b, F: PrimeField> Mul<&'a F> for &'b Polynomial<F> {
+    type Output = Polynomial<F>;
 
     #[inline]
-    fn mul(self, constant: &'a Scalar) -> Polynomial {
-        if self.is_zero() || (constant == &Scalar::zero()) {
+    fn mul(self, constant: &'a F) -> Polynomial<F> {
+        if self.is_zero() || (constant == &F::zero()) {
             return Polynomial::zero();
         }
         let scaled_coeffs: Vec<_> = self
             .coeffs
             .par_iter()
-            .map(|coeff| coeff * constant)
+            .map(|coeff| *coeff * constant)
             .collect();
         Polynomial::from_coefficients_vec(scaled_coeffs)
     }
 }
 /// Convenience Trait to sub a scalar and polynomial
-impl<'a, 'b> Add<&'a Scalar> for &'b Polynomial {
-    type Output = Polynomial;
+impl<'a, 'b, F: PrimeField> Add<&'a F> for &'b Polynomial<F> {
+    type Output = Polynomial<F>;
 
     #[inline]
-    fn add(self, constant: &'a Scalar) -> Polynomial {
+    fn add(self, constant: &'a F) -> Polynomial<F> {
         if self.is_zero() {
             return Polynomial::from_coefficients_vec(vec![*constant]);
         }
         let mut result = self.clone();
-        if constant == &Scalar::zero() {
+        if constant == &F::zero() {
             return result;
         }
 
@@ -391,12 +391,12 @@ impl<'a, 'b> Add<&'a Scalar> for &'b Polynomial {
         result
     }
 }
-impl<'a, 'b> Sub<&'a Scalar> for &'b Polynomial {
-    type Output = Polynomial;
+impl<'a, 'b, F: PrimeField> Sub<&'a F> for &'b Polynomial<F> {
+    type Output = Polynomial<F>;
 
     #[inline]
-    fn sub(self, constant: &'a Scalar) -> Polynomial {
-        let negated_constant = -constant;
+    fn sub(self, constant: &'a F) -> Polynomial<F> {
+        let negated_constant = constant.neg();
         self + &negated_constant
     }
 }
@@ -407,15 +407,15 @@ mod test {
     fn test_ruffini() {
         // X^2 + 4X + 4
         let quadratic = Polynomial::from_coefficients_vec(vec![
-            Scalar::from(4),
-            Scalar::from(4),
-            Scalar::one(),
+            F::from(4),
+            F::from(4),
+            F::one(),
         ]);
         // Divides X^2 + 4X + 4 by X+2
-        let quotient = quadratic.ruffini(-Scalar::from(2));
+        let quotient = quadratic.ruffini(-F::from(2));
         // X+2
         let expected_quotient =
-            Polynomial::from_coefficients_vec(vec![Scalar::from(2), Scalar::one()]);
+            Polynomial::from_coefficients_vec(vec![F::from(2), F::one()]);
         assert_eq!(quotient, expected_quotient);
     }
     #[test]

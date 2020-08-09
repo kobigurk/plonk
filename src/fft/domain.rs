@@ -430,12 +430,13 @@ impl<F: PrimeField> Iterator for Elements<F> {
 #[cfg(test)]
 mod tests {
     use super::EvaluationDomain;
+    use algebra::{bls12_381::Fr, Field};
 
     #[test]
     fn size_of_elements() {
         for coeffs in 1..10 {
             let size = 1 << coeffs;
-            let domain = EvaluationDomain::new(size).unwrap();
+            let domain = EvaluationDomain::<Fr>::new(size).unwrap();
             let domain_size = domain.size();
             assert_eq!(domain_size, domain.elements().count());
         }
@@ -445,7 +446,7 @@ mod tests {
     fn elements_contents() {
         for coeffs in 1..10 {
             let size = 1 << coeffs;
-            let domain = EvaluationDomain::new(size).unwrap();
+            let domain = EvaluationDomain::<Fr>::new(size).unwrap();
             for (i, element) in domain.elements().enumerate() {
                 assert_eq!(element, domain.group_gen.pow(&[i as u64, 0, 0, 0]));
             }

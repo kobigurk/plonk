@@ -608,11 +608,18 @@ impl<F: PrimeField> Permutation<F> {
 mod test {
     use super::*;
     use crate::fft::Polynomial;
-    use dusk_bls12_381::Scalar as Fr;
+    use algebra::{
+        bls12_381::{Bls12_381, Fr},
+        Zero,
+        One,
+        Field,
+        PrimeField,
+        FftField,
+    };
 
     #[test]
     fn test_permutation_format() {
-        let mut perm: Permutation = Permutation::new();
+        let mut perm: Permutation<Fr> = Permutation::new();
 
         let num_variables = 10u8;
         for i in 0..num_variables {
@@ -754,8 +761,8 @@ mod test {
         assert_eq!(encoded_fourth_sigma[2], w_cubed * &K3());
         assert_eq!(encoded_fourth_sigma[3], K3());
 
-        let w_l = vec![Fr::from(2), Fr::from(2), Fr::from(2), Fr::from(2)];
-        let w_r = vec![Fr::from(2), Fr::one(), Fr::one(), Fr::one()];
+        let w_l = vec![Fr::from(2 as u64), Fr::from(2 as u64), Fr::from(2 as u64), Fr::from(2 as u64)];
+        let w_r = vec![Fr::from(2 as u64), Fr::one(), Fr::one(), Fr::one()];
         let w_o = vec![Fr::one(), Fr::one(), Fr::one(), Fr::one()];
         let w_4 = vec![Fr::one(), Fr::one(), Fr::one(), Fr::one()];
 
@@ -771,7 +778,7 @@ mod test {
     }
     #[test]
     fn test_permutation_compute_sigmas() {
-        let mut perm: Permutation = Permutation::new();
+        let mut perm: Permutation<Fr> = Permutation::new();
 
         let var_one = perm.new_variable();
         let var_two = perm.new_variable();
@@ -892,9 +899,9 @@ mod test {
         perm.add_variables_to_map(var_one, var_two, var_three, var_four, 0);
         perm.add_variables_to_map(var_three, var_two, var_one, var_four, 1);
 
-        let w_l: Vec<_> = vec![Fr::one(), Fr::from(3)];
-        let w_r: Vec<_> = vec![Fr::from(2), Fr::from(2)];
-        let w_o: Vec<_> = vec![Fr::from(3), Fr::one()];
+        let w_l: Vec<_> = vec![Fr::one(), Fr::from(3 as u64)];
+        let w_r: Vec<_> = vec![Fr::from(2 as u64), Fr::from(2 as u64)];
+        let w_o: Vec<_> = vec![Fr::from(3 as u64), Fr::one()];
         let w_4: Vec<_> = vec![Fr::one(), Fr::one()];
 
         test_correct_permutation_poly(
@@ -918,8 +925,8 @@ mod test {
 
     fn test_correct_permutation_poly(
         n: usize,
-        mut perm: Permutation,
-        domain: &EvaluationDomain,
+        mut perm: Permutation<Fr>,
+        domain: &EvaluationDomain<Fr>,
         w_l: Vec<Fr>,
         w_r: Vec<Fr>,
         w_o: Vec<Fr>,

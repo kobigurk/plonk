@@ -266,30 +266,30 @@ impl<E: PairingEngine> StandardComposer<E> {
 #[cfg(test)]
 mod tests {
     use super::super::helper::*;
-    use dusk_bls12_381::F;
+    use algebra::{Zero, One, Field, bls12_381::{Bls12_381, Fr}};
 
     #[test]
     fn test_public_inputs() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let var_one = composer.add_input(E::Fr::one());
+                let var_one = composer.add_input(Fr::one());
 
                 let should_be_three = composer.big_add(
                     var_one.into(),
                     var_one.into(),
                     None,
-                    E::Fr::zero(),
-                    E::Fr::one(),
+                    Fr::zero(),
+                    Fr::one(),
                 );
-                composer.constrain_to_constant(should_be_three, E::Fr::from(3), E::Fr::zero());
+                composer.constrain_to_constant(should_be_three, <Fr as From<u64>>::from(3), Fr::zero());
                 let should_be_four = composer.big_add(
                     var_one.into(),
                     var_one.into(),
                     None,
-                    E::Fr::zero(),
-                    E::Fr::from(2),
+                    Fr::zero(),
+                    <Fr as From<u64>>::from(2),
                 );
-                composer.constrain_to_constant(should_be_four, E::Fr::from(4), E::Fr::zero());
+                composer.constrain_to_constant(should_be_four, <Fr as From<u64>>::from(4), Fr::zero());
             },
             200,
         );
@@ -298,28 +298,28 @@ mod tests {
 
     #[test]
     fn test_correct_add_mul_gate() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
                 // Verify that (4+5+5) * (6+7+7) = 280
-                let four = composer.add_input(E::Fr::from(4));
-                let five = composer.add_input(E::Fr::from(5));
-                let six = composer.add_input(E::Fr::from(6));
-                let seven = composer.add_input(E::Fr::from(7));
+                let four = composer.add_input(<Fr as From<u64>>::from(4));
+                let five = composer.add_input(<Fr as From<u64>>::from(5));
+                let six = composer.add_input(<Fr as From<u64>>::from(6));
+                let seven = composer.add_input(<Fr as From<u64>>::from(7));
 
                 let fourteen = composer.big_add(
                     four.into(),
                     five.into(),
                     Some(five.into()),
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
 
                 let twenty = composer.big_add(
                     six.into(),
                     seven.into(),
                     Some(seven.into()),
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
 
                 // There are quite a few ways to check the equation is correct, depending on your circumstance
@@ -327,13 +327,13 @@ mod tests {
                 // If we do not, we can compute it using the `mul`
                 // If the output is public, we can also constrain the output wire of the mul gate to it. This is what this test does
                 let output = composer.mul(
-                    E::Fr::one(),
+                    Fr::one(),
                     fourteen,
                     twenty,
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
-                composer.constrain_to_constant(output, E::Fr::from(280), E::Fr::zero());
+                composer.constrain_to_constant(output, <Fr as From<u64>>::from(280), Fr::zero());
             },
             200,
         );
@@ -342,18 +342,18 @@ mod tests {
 
     #[test]
     fn test_correct_add_gate() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let zero = composer.add_input(E::Fr::zero());
-                let one = composer.add_input(E::Fr::one());
+                let zero = composer.add_input(Fr::zero());
+                let one = composer.add_input(Fr::one());
 
                 let c = composer.add(
-                    (E::Fr::one(), one),
-                    (E::Fr::zero(), zero),
-                    E::Fr::from(2u64),
-                    E::Fr::zero(),
+                    (Fr::one(), one),
+                    (Fr::zero(), zero),
+                    <Fr as From<u64>>::from(2u64),
+                    Fr::zero(),
                 );
-                composer.constrain_to_constant(c, E::Fr::from(3), E::Fr::zero());
+                composer.constrain_to_constant(c, <Fr as From<u64>>::from(3), Fr::zero());
             },
             32,
         );
@@ -362,40 +362,40 @@ mod tests {
 
     #[test]
     fn test_correct_big_add_mul_gate() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
                 // Verify that (4+5+5) * (6+7+7) + (8*9) = 352
-                let four = composer.add_input(E::Fr::from(4));
-                let five = composer.add_input(E::Fr::from(5));
-                let six = composer.add_input(E::Fr::from(6));
-                let seven = composer.add_input(E::Fr::from(7));
-                let nine = composer.add_input(E::Fr::from(9));
+                let four = composer.add_input(<Fr as From<u64>>::from(4));
+                let five = composer.add_input(<Fr as From<u64>>::from(5));
+                let six = composer.add_input(<Fr as From<u64>>::from(6));
+                let seven = composer.add_input(<Fr as From<u64>>::from(7));
+                let nine = composer.add_input(<Fr as From<u64>>::from(9));
 
                 let fourteen = composer.big_add(
                     four.into(),
                     five.into(),
                     Some(five.into()),
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
 
                 let twenty = composer.big_add(
                     six.into(),
                     seven.into(),
                     Some(seven.into()),
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
 
                 let output = composer.big_mul(
-                    E::Fr::one(),
+                    Fr::one(),
                     fourteen,
                     twenty,
-                    Some((E::Fr::from(8), nine)),
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Some((<Fr as From<u64>>::from(8), nine)),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
-                composer.constrain_to_constant(output, E::Fr::from(352), E::Fr::zero());
+                composer.constrain_to_constant(output, <Fr as From<u64>>::from(352), Fr::zero());
             },
             200,
         );
@@ -404,37 +404,37 @@ mod tests {
 
     #[test]
     fn test_incorrect_add_mul_gate() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
                 // Verify that (5+5) * (6+7) != 117
-                let five = composer.add_input(E::Fr::from(5));
-                let six = composer.add_input(E::Fr::from(6));
-                let seven = composer.add_input(E::Fr::from(7));
+                let five = composer.add_input(<Fr as From<u64>>::from(5));
+                let six = composer.add_input(<Fr as From<u64>>::from(6));
+                let seven = composer.add_input(<Fr as From<u64>>::from(7));
 
                 let five_plus_five = composer.big_add(
                     five.into(),
                     five.into(),
                     None,
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
 
                 let six_plus_seven = composer.big_add(
                     six.into(),
                     seven.into(),
                     None,
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
 
                 let output = composer.mul(
-                    E::Fr::one(),
+                    Fr::one(),
                     five_plus_five,
                     six_plus_seven,
-                    E::Fr::zero(),
-                    E::Fr::zero(),
+                    Fr::zero(),
+                    Fr::zero(),
                 );
-                composer.constrain_to_constant(output, E::Fr::from(117), E::Fr::zero());
+                composer.constrain_to_constant(output, <Fr as From<u64>>::from(117), Fr::zero());
             },
             200,
         );

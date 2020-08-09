@@ -313,11 +313,13 @@ impl<E: PairingEngine> StandardComposer<E> {
 mod test {
     use super::*;
     use crate::constraint_system::helper::*;
+    use algebra::bls12_381::Bls12_381;
+
     #[test]
     /// Tests that the circuit gets padded to the correct length
     /// XXX: We can do this test without dummy_gadget method
     fn test_pad() {
-        let mut composer: StandardComposer = StandardComposer::new();
+        let mut composer: StandardComposer<Bls12_381> = StandardComposer::new();
         dummy_gadget(100, &mut composer);
 
         // Pad the circuit to next power of two

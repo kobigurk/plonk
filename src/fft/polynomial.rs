@@ -403,19 +403,20 @@ impl<'a, 'b, F: PrimeField> Sub<&'a F> for &'b Polynomial<F> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use algebra::{bls12_381::Fr, Zero, One};
     #[test]
     fn test_ruffini() {
         // X^2 + 4X + 4
-        let quadratic = Polynomial::from_coefficients_vec(vec![
-            F::from(4),
-            F::from(4),
-            F::one(),
+        let quadratic = Polynomial::<Fr>::from_coefficients_vec(vec![
+            <Fr as From<u64>>::from(4),
+            <Fr as From<u64>>::from(4),
+            Fr::one(),
         ]);
         // Divides X^2 + 4X + 4 by X+2
-        let quotient = quadratic.ruffini(-F::from(2));
+        let quotient = quadratic.ruffini(-<Fr as From<u64>>::from(2));
         // X+2
         let expected_quotient =
-            Polynomial::from_coefficients_vec(vec![F::from(2), F::one()]);
+            Polynomial::from_coefficients_vec(vec![<Fr as From<u64>>::from(2), Fr::one()]);
         assert_eq!(quotient, expected_quotient);
     }
     #[test]
@@ -430,18 +431,18 @@ mod test {
         // Zero polynomial
         let zero = Polynomial::zero();
         // Quotient is invariant under any argument we pass
-        let quotient = zero.ruffini(-Scalar::from(2));
+        let quotient = zero.ruffini(-<Fr as From<u64>>::from(2));
         assert_eq!(quotient, Polynomial::zero());
         // (2)
         //
         // X^2 + X
         let p =
-            Polynomial::from_coefficients_vec(vec![Scalar::zero(), Scalar::one(), Scalar::one()]);
+            Polynomial::from_coefficients_vec(vec![Fr::zero(), Fr::one(), Fr::one()]);
         // Divides X^2 + X by X
-        let quotient = p.ruffini(Scalar::zero());
+        let quotient = p.ruffini(Fr::zero());
         // X + 1
         let expected_quotient =
-            Polynomial::from_coefficients_vec(vec![Scalar::one(), Scalar::one()]);
+            Polynomial::from_coefficients_vec(vec![Fr::one(), Fr::one()]);
         assert_eq!(quotient, expected_quotient);
     }
 }

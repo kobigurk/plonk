@@ -1,8 +1,8 @@
 use crate::constraint_system::StandardComposer;
 use crate::constraint_system::Variable;
-use dusk_bls12_381::Scalar;
+use algebra::{PairingEngine, Zero, One, Field, PrimeField, BigInteger};
 
-impl StandardComposer {
+impl<E: PairingEngine> StandardComposer<E> {
     /// Adds a boolean constraint (also known as binary constraint) where
     /// the gate eq. will enforce that the `Variable` received is either `0`
     /// or `1` by adding a constraint in the circuit.
@@ -15,19 +15,19 @@ impl StandardComposer {
         self.w_o.push(a);
         self.w_4.push(self.zero_var);
 
-        self.q_m.push(Scalar::one());
-        self.q_l.push(Scalar::zero());
-        self.q_r.push(Scalar::zero());
-        self.q_o.push(-Scalar::one());
-        self.q_c.push(Scalar::zero());
-        self.q_4.push(Scalar::zero());
-        self.q_arith.push(Scalar::one());
+        self.q_m.push(E::Fr::one());
+        self.q_l.push(E::Fr::zero());
+        self.q_r.push(E::Fr::zero());
+        self.q_o.push(-E::Fr::one());
+        self.q_c.push(E::Fr::zero());
+        self.q_4.push(E::Fr::zero());
+        self.q_arith.push(E::Fr::one());
 
-        self.q_range.push(Scalar::zero());
-        self.q_logic.push(Scalar::zero());
-        self.q_ecc.push(Scalar::zero());
+        self.q_range.push(E::Fr::zero());
+        self.q_logic.push(E::Fr::zero());
+        //self.q_ecc.push(E::Fr::zero());
 
-        self.public_inputs.push(Scalar::zero());
+        self.public_inputs.push(E::Fr::zero());
 
         self.perm
             .add_variables_to_map(a, a, a, self.zero_var, self.n);
@@ -40,13 +40,16 @@ impl StandardComposer {
 #[cfg(test)]
 mod tests {
     use super::super::helper::*;
-    use dusk_bls12_381::Scalar;
+    use algebra::{
+        bls12_381::{Fr, Bls12_381},
+        Zero, One,
+    };
     #[test]
     fn test_correct_bool_gate() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let zero = composer.add_input(Scalar::zero());
-                let one = composer.add_input(Scalar::one());
+                let zero = composer.add_input(Fr::zero());
+                let one = composer.add_input(Fr::one());
 
                 composer.boolean_gate(zero);
                 composer.boolean_gate(one);
@@ -58,10 +61,10 @@ mod tests {
 
     #[test]
     fn test_incorrect_bool_gate() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let zero = composer.add_input(Scalar::from(5));
-                let one = composer.add_input(Scalar::one());
+                let zero = composer.add_input(<Fr as From<u64>>::from(5));
+                let one = composer.add_input(Fr::one());
 
                 composer.boolean_gate(zero);
                 composer.boolean_gate(one);

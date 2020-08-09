@@ -2,11 +2,11 @@ use super::StandardComposer;
 use crate::commitment_scheme::kzg10::PublicParameters;
 use crate::proof_system::{Prover, Verifier};
 use anyhow::{Error, Result};
-use dusk_bls12_381::Scalar;
+use algebra::{PairingEngine, Zero, One, Field, PrimeField, AffineCurve, ProjectiveCurve};
 
 /// Adds dummy constraints using arithmetic gates
-pub(crate) fn dummy_gadget(n: usize, composer: &mut StandardComposer) {
-    let one = Scalar::one();
+pub(crate) fn dummy_gadget<E: PairingEngine>(n: usize, composer: &mut StandardComposer<E>) {
+    let one = E::Fr::one();
 
     let var_one = composer.add_input(one);
 
@@ -15,16 +15,16 @@ pub(crate) fn dummy_gadget(n: usize, composer: &mut StandardComposer) {
             var_one.into(),
             var_one.into(),
             None,
-            Scalar::zero(),
-            Scalar::zero(),
+            E::Fr::zero(),
+            E::Fr::zero(),
         );
     }
 }
 
 /// Takes a generic gadget function with no auxillary input and
 /// tests whether it passes an end-to-end test
-pub(crate) fn gadget_tester(
-    gadget: fn(composer: &mut StandardComposer),
+pub(crate) fn gadget_tester<E: PairingEngine>(
+    gadget: fn(composer: &mut StandardComposer<E>),
     n: usize,
 ) -> Result<(), Error> {
     // Common View

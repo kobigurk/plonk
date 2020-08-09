@@ -1,14 +1,14 @@
 //! This module holds the components needed in the Constraint System.
 //! The two components used are Variables and Wires.
-use dusk_bls12_381::Scalar;
+use algebra::{PrimeField, Zero, One};
 
 /// The value is a reference to the actual value that was added to the constraint system
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Variable(pub(crate) usize);
 
-impl Into<(Scalar, Variable)> for Variable {
-    fn into(self) -> (Scalar, Variable) {
-        (Scalar::one(), self)
+impl<F: PrimeField> Into<(F, Variable)> for Variable {
+    fn into(self) -> (F, Variable) {
+        (F::one(), self)
     }
 }
 

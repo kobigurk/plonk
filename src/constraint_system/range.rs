@@ -1,15 +1,15 @@
 use crate::bit_iterator::*;
 use crate::constraint_system::StandardComposer;
 use crate::constraint_system::{Variable, WireData};
-use dusk_bls12_381::Scalar;
+use algebra::{PairingEngine, Zero, One, Field, PrimeField, BigInteger};
 
-impl StandardComposer {
+impl<E: PairingEngine> StandardComposer<E> {
     /// Adds a range-constraint gate that checks and constrains a
     /// `Variable` to be inside of the range [0,num_bits].
     pub fn range_gate(&mut self, witness: Variable, num_bits: usize) {
         // Adds `variable` into the appropriate witness position
         // based on the accumulator number a_i
-        let add_wire = |composer: &mut StandardComposer, i: usize, variable: Variable| {
+        let add_wire = |composer: &mut StandardComposer<E>, i: usize, variable: Variable| {
             // Since four quads can fit into one gate, the gate index does not change for every four wires
             let gate_index = composer.circuit_size() + (i / 4);
 
@@ -42,8 +42,7 @@ impl StandardComposer {
 
         // Convert witness to bit representation and reverse
         let value = self.variables[&witness];
-        let bit_iter = BitIterator8::new(value.to_bytes());
-        let mut bits: Vec<_> = bit_iter.collect();
+        let mut bits: Vec<_> = value.into_repr().to_bits();
         bits.reverse();
 
         // For a width-4 program, one gate will contain 4 accumulators
@@ -100,8 +99,8 @@ impl StandardComposer {
         // We collect the set of accumulators to return back to the user
         // and keep a running count of the current accumulator
         let mut accumulators: Vec<Variable> = Vec::new();
-        let mut accumulator = Scalar::zero();
-        let four = Scalar::from(4);
+        let mut accumulator = E::Fr::zero();
+        let four = <E::Fr as From<u64>>::from(4);
 
         // First we pad our gates by the necessary amount
         for i in 0..pad {
@@ -116,8 +115,8 @@ impl StandardComposer {
             let quad = q_0 + (2 * q_1);
 
             // Compute the next accumulator term
-            accumulator = four * accumulator;
-            accumulator += Scalar::from(quad);
+            accumulator = four * &accumulator;
+            accumulator += &<E::Fr as From<u64>>::from(quad);
 
             let accumulator_var = self.add_input(accumulator);
             accumulators.push(accumulator_var);
@@ -126,8 +125,8 @@ impl StandardComposer {
         }
 
         // Set the selector polynomials for all of the gates we used
-        let zeros = vec![Scalar::zero(); used_gates];
-        let ones = vec![Scalar::one(); used_gates];
+        let zeros = vec![E::Fr::zero(); used_gates];
+        let ones = vec![E::Fr::one(); used_gates];
 
         self.q_m.extend(zeros.iter());
         self.q_l.extend(zeros.iter());
@@ -136,7 +135,7 @@ impl StandardComposer {
         self.q_c.extend(zeros.iter());
         self.q_arith.extend(zeros.iter());
         self.q_4.extend(zeros.iter());
-        self.q_ecc.extend(zeros.iter());
+        //self.q_ecc.extend(zeros.iter());
         self.q_range.extend(ones.iter());
         self.q_logic.extend(zeros.iter());
         self.public_inputs.extend(zeros.iter());
@@ -146,7 +145,7 @@ impl StandardComposer {
         // Remember; it will contain one quad in the fourth wire, which will be used in the
         // gate before it
         // Furthermore, we set the left, right and output wires to zero
-        *self.q_range.last_mut().unwrap() = Scalar::zero();
+        *self.q_range.last_mut().unwrap() = E::Fr::zero();
         self.w_l.push(self.zero_var);
         self.w_r.push(self.zero_var);
         self.w_o.push(self.zero_var);
@@ -162,14 +161,15 @@ impl StandardComposer {
 #[cfg(test)]
 mod tests {
     use super::super::helper::*;
-    use dusk_bls12_381::Scalar;
+    use algebra::bls12_381::Fr;
+    use algebra::Bls12_381;
 
     #[test]
     fn test_range_constraint() {
         // Should fail as the number is not 32 bits
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let witness = composer.add_input(Scalar::from((u32::max_value() as u64) + 1));
+                let witness = composer.add_input(Fr::from((u32::max_value() as u64) + 1));
                 composer.range_gate(witness, 32);
             },
             200,
@@ -177,9 +177,9 @@ mod tests {
         assert!(res.is_err());
 
         // Should fail as number is greater than 32 bits
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let witness = composer.add_input(Scalar::from(u64::max_value()));
+                let witness = composer.add_input(Fr::from(u64::max_value()));
                 composer.range_gate(witness, 32);
             },
             200,
@@ -187,9 +187,9 @@ mod tests {
         assert!(res.is_err());
 
         // Should pass as the number is within 34 bits
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
-                let witness = composer.add_input(Scalar::from(2u64.pow(34) - 1));
+                let witness = composer.add_input(Fr::from(2u64.pow(34) - 1));
                 composer.range_gate(witness, 34);
             },
             200,
@@ -201,9 +201,9 @@ mod tests {
     #[should_panic]
     fn test_odd_bit_range() {
         // Should fail as the number we we need a even number of bits
-        let _ok = gadget_tester(
+        let _ok = gadget_tester::<Bls12_381>(
             |composer| {
-                let witness = composer.add_input(Scalar::from(u32::max_value() as u64));
+                let witness = composer.add_input(Fr::from(u32::max_value() as u64));
                 composer.range_gate(witness, 33);
             },
             200,

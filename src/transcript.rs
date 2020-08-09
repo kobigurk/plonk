@@ -33,8 +33,9 @@ impl<E: PairingEngine> TranscriptProtocol<E> for Transcript {
         self.append_message(label, &bytes)
     }
 
+    //TODO(kobi): fix this to be secure
     fn challenge_scalar(&mut self, label: &'static [u8]) -> E::Fr {
-        let mut buf = [0u8; 64];
+        let mut buf = vec![0u8; E::Fr::size_in_bits()/8 - 1];
         self.challenge_bytes(label, &mut buf);
 
         E::Fr::from_random_bytes(&buf).unwrap()

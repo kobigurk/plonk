@@ -1,7 +1,7 @@
 use rand_core::RngCore;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-/// Returns a vector of Scalars of increasing powers of x from x^0 to x^d.
+/// Returns a vector of Frs of increasing powers of x from x^0 to x^d.
 pub(crate) fn powers_of<F: PrimeField>(scalar: &F, max_degree: usize) -> Vec<F> {
     let mut powers = Vec::with_capacity(max_degree + 1);
     powers.push(F::one());
@@ -11,7 +11,7 @@ pub(crate) fn powers_of<F: PrimeField>(scalar: &F, max_degree: usize) -> Vec<F> 
     powers
 }
 
-/// Generates a random Scalar using a RNG seed.
+/// Generates a random Fr using a RNG seed.
 pub(crate) fn random_scalar<F: PrimeField, R: RngCore>(rng: &mut R) -> F {
     F::rand(rng)
 }
@@ -74,13 +74,14 @@ pub fn batch_inversion<F: PrimeField>(v: &mut [F]) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use algebra::bls12_381::Fr;
     #[test]
     fn test_batch_inversion() {
-        let one = Scalar::from(1);
-        let two = Scalar::from(2);
-        let three = Scalar::from(3);
-        let four = Scalar::from(4);
-        let five = Scalar::from(5);
+        let one = <Fr as From<u64>>::from(1);
+        let two = <Fr as From<u64>>::from(2);
+        let three = <Fr as From<u64>>::from(3);
+        let four = <Fr as From<u64>>::from(4);
+        let five = <Fr as From<u64>>::from(5);
 
         let original_scalars = vec![one, two, three, four, five];
         let mut inverted_scalars = vec![one, two, three, four, five];

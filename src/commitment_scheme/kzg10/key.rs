@@ -240,9 +240,10 @@ mod test {
     use super::super::srs::*;
     use super::*;
     use merlin::Transcript;
+    use algebra::bls12_381::{Bls12_381, Fr};
 
     // Creates a proving key and verifier key based on a specified degree
-    fn setup_test(degree: usize) -> (CommitKey, OpeningKey) {
+    fn setup_test(degree: usize) -> (CommitKey<Bls12_381>, OpeningKey<Bls12_381>) {
         let srs = PublicParameters::setup(degree, &mut rand::thread_rng()).unwrap();
         srs.trim(degree).unwrap()
     }
@@ -250,7 +251,7 @@ mod test {
     fn test_basic_commit() {
         let degree = 25;
         let (proving_key, opening_key) = setup_test(degree);
-        let point = Scalar::from(10);
+        let point = <Fr as From<u64>>::from(10);
 
         let poly = Polynomial::rand(degree, &mut rand::thread_rng());
         let value = poly.evaluate(&point);
@@ -265,8 +266,8 @@ mod test {
         let degree = 25;
         let (proving_key, vk) = setup_test(degree);
 
-        let point_a = Scalar::from(10);
-        let point_b = Scalar::from(11);
+        let point_a = <Fr as From<u64>>::from(10);
+        let point_b = <Fr as From<u64>>::from(11);
 
         // Compute secret polynomial a
         let poly_a = Polynomial::rand(degree, &mut rand::thread_rng());
@@ -296,7 +297,7 @@ mod test {
     fn test_aggregate_witness() {
         let max_degree = 27;
         let (proving_key, opening_key) = setup_test(max_degree);
-        let point = Scalar::from(10);
+        let point = <Fr as From<u64>>::from(10);
 
         // Committer's View
         let aggregated_proof = {
@@ -333,8 +334,8 @@ mod test {
     fn test_batch_with_aggregation() {
         let max_degree = 28;
         let (proving_key, opening_key) = setup_test(max_degree);
-        let point_a = Scalar::from(10);
-        let point_b = Scalar::from(11);
+        let point_a = <Fr as From<u64>>::from(10);
+        let point_b = <Fr as From<u64>>::from(11);
 
         // Committer's View
         let (aggregated_proof, single_proof) = {

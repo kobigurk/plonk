@@ -419,11 +419,12 @@ mod tests {
     use super::*;
     use crate::commitment_scheme::kzg10::PublicParameters;
     use crate::proof_system::{Prover, Verifier};
+    use algebra::bls12_381::Bls12_381;
 
     #[test]
     /// Tests that a circuit initially has 3 gates
     fn test_initial_circuit_size() {
-        let composer: StandardComposer = StandardComposer::new();
+        let composer: StandardComposer<Bls12_381> = StandardComposer::new();
         // Circuit size is n+3 because
         // - We have an extra gate which forces the first witness to be zero. This is used when the advice wire is not being used.
         // - We have two gates which ensure that the permutation polynomial is not the identity and
@@ -436,7 +437,7 @@ mod tests {
     #[ignore]
     /// Tests that an empty circuit proof passes
     fn test_prove_verify() {
-        let res = gadget_tester(
+        let res = gadget_tester::<Bls12_381>(
             |composer| {
                 // do nothing except add the dummy constraints
             },
@@ -448,7 +449,7 @@ mod tests {
     #[test]
     // XXX: Move this to integration tests
     fn test_multiple_proofs() {
-        let public_parameters = PublicParameters::setup(2 * 30, &mut rand::thread_rng()).unwrap();
+        let public_parameters = PublicParameters::<Bls12_381>::setup(2 * 30, &mut rand::thread_rng()).unwrap();
 
         // Create a prover struct
         let mut prover = Prover::new(b"demo");

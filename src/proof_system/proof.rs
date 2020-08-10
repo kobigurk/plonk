@@ -87,7 +87,7 @@ impl<E: PairingEngine> Proof<E> {
         let alpha = TranscriptProtocol::<E>::challenge_scalar(transcript, b"alpha");
         let range_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"range separation challenge");
         let logic_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"logic separation challenge");
-        let ecc_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"ecc separation challenge");
+        //let ecc_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"ecc separation challenge");
 
         // Add commitment to quotient polynomial to transcript
         transcript.append_commitment(b"t_1", &self.t_1_comm);
@@ -148,7 +148,7 @@ impl<E: PairingEngine> Proof<E> {
             (
                 &range_sep_challenge,
                 &logic_sep_challenge,
-                &ecc_sep_challenge,
+//                &ecc_sep_challenge,
             ),
             &z_challenge,
             l1_eval,
@@ -272,7 +272,7 @@ impl<E: PairingEngine> Proof<E> {
         alpha: &E::Fr,
         beta: &E::Fr,
         gamma: &E::Fr,
-        (range_sep_challenge, logic_sep_challenge, ecc_sep_challenge): (&E::Fr, &E::Fr, &E::Fr),
+        (range_sep_challenge, logic_sep_challenge/*, ecc_sep_challenge*/): (&E::Fr, &E::Fr/*, &E::Fr*/),
         z_challenge: &E::Fr,
         l1_eval: E::Fr,
         verifier_key: &VerifierKey<E>,

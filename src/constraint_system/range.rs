@@ -194,7 +194,8 @@ mod tests {
             },
             200,
         );
-        assert!(res.is_ok());
+        res.unwrap();
+        //assert!(res.is_ok());
     }
 
     #[test]

@@ -59,9 +59,9 @@ pub fn compute<E: PairingEngine>(
         gamma,
         range_separation_challenge,
         logic_separation_challenge,
-        ecc_separation_challenge,
+//        ecc_separation_challenge,
         z_challenge,
-    ): &(E::Fr, E::Fr, E::Fr, E::Fr, E::Fr, E::Fr, E::Fr),
+    ): &(E::Fr, E::Fr, E::Fr, E::Fr, E::Fr, E::Fr),
     w_l_poly: &Polynomial<E::Fr>,
     w_r_poly: &Polynomial<E::Fr>,
     w_o_poly: &Polynomial<E::Fr>,
@@ -92,7 +92,7 @@ pub fn compute<E: PairingEngine>(
         (
             range_separation_challenge,
             logic_separation_challenge,
-            ecc_separation_challenge,
+            //ecc_separation_challenge,
         ),
         &a_eval,
         &b_eval,
@@ -150,10 +150,10 @@ pub fn compute<E: PairingEngine>(
 
 #[allow(clippy::too_many_arguments)]
 fn compute_circuit_satisfiability<E: PairingEngine>(
-    (range_separation_challenge, logic_separation_challenge, ecc_separation_challenge): (
+    (range_separation_challenge, logic_separation_challenge/*, ecc_separation_challenge*/): (
         &E::Fr,
         &E::Fr,
-        &E::Fr,
+        //&E::Fr,
     ),
     a_eval: &E::Fr,
     b_eval: &E::Fr,

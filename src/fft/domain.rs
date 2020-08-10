@@ -59,7 +59,7 @@ impl<F: PrimeField> EvaluationDomain<F> {
         // Compute the generator for the multiplicative subgroup.
         // It should be 2^(log_size_of_group) root of unity.
 
-        let mut group_gen = F::from_repr(F::FftParams::TWO_ADIC_ROOT_OF_UNITY).unwrap();
+        let mut group_gen = F::two_adic_root_of_unity();
         for _ in log_size_of_group..F::FftParams::TWO_ADICITY {
             group_gen = group_gen.square();
         }

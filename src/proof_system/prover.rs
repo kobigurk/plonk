@@ -202,7 +202,7 @@ impl<E: PairingEngine> Prover<E> {
         let alpha = TranscriptProtocol::<E>::challenge_scalar(&mut transcript, b"alpha");
         let range_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(&mut transcript, b"range separation challenge");
         let logic_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(&mut transcript, b"logic separation challenge");
-        let ecc_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(&mut transcript, b"ecc separation challenge");
+        //let ecc_sep_challenge = TranscriptProtocol::<E>::challenge_scalar(&mut transcript, b"ecc separation challenge");
 
         let t_poly = quotient_poly::compute(
             &domain,
@@ -216,7 +216,7 @@ impl<E: PairingEngine> Prover<E> {
                 gamma,
                 range_sep_challenge,
                 logic_sep_challenge,
-                ecc_sep_challenge,
+//                ecc_sep_challenge,
             ),
         )?;
 
@@ -249,7 +249,7 @@ impl<E: PairingEngine> Prover<E> {
                 gamma,
                 range_sep_challenge,
                 logic_sep_challenge,
-                ecc_sep_challenge,
+//                ecc_sep_challenge,
                 z_challenge,
             ),
             &w_l_poly,

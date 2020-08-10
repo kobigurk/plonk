@@ -16,6 +16,16 @@ pub struct Polynomial<F: PrimeField> {
     pub coeffs: Vec<F>,
 }
 
+impl<F: PrimeField> Display for Polynomial<F> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for c in self.coeffs.iter() {
+            f.write_str(&format!("{}, ", c));
+        }
+
+        Ok(())
+    }
+}
+
 impl<F: PrimeField> Deref for Polynomial<F> {
     type Target = [F];
 
@@ -115,6 +125,7 @@ impl<F: PrimeField> Polynomial<F> {
 
 use std::iter::Sum;
 use algebra::PrimeField;
+use std::fmt::{Display, Formatter};
 
 impl<F: PrimeField> Sum for Polynomial<F> {
     fn sum<I>(iter: I) -> Self

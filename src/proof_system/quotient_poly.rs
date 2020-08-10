@@ -14,8 +14,7 @@ pub(crate) fn compute<F: PrimeField>(
     z_poly: &Polynomial<F>,
     (w_l_poly, w_r_poly, w_o_poly, w_4_poly): (&Polynomial<F>, &Polynomial<F>, &Polynomial<F>, &Polynomial<F>),
     public_inputs_poly: &Polynomial<F>,
-    (alpha, beta, gamma, range_challenge, logic_challenge, ecc_challenge): &(
-        F,
+    (alpha, beta, gamma, range_challenge, logic_challenge/*, ecc_challenge*/): &(
         F,
         F,
         F,
@@ -52,7 +51,7 @@ pub(crate) fn compute<F: PrimeField>(
 
     let t_1 = compute_circuit_satisfiability_equation(
         &domain,
-        (range_challenge, logic_challenge, ecc_challenge),
+        (range_challenge, logic_challenge/*, ecc_challenge*/),
         prover_key,
         (&wl_eval_4n, &wr_eval_4n, &wo_eval_4n, &w4_eval_4n),
         public_inputs_poly,
@@ -83,7 +82,7 @@ pub(crate) fn compute<F: PrimeField>(
 // Ensures that the circuit is satisfied
 fn compute_circuit_satisfiability_equation<F: PrimeField>(
     domain: &EvaluationDomain<F>,
-    (range_challenge, logic_challenge, ecc_challenge): (&F, &F, &F),
+    (range_challenge, logic_challenge/*, ecc_challenge*/): (&F, &F),
     prover_key: &ProverKey<F>,
     (wl_eval_4n, wr_eval_4n, wo_eval_4n, w4_eval_4n): (&[F], &[F], &[F], &[F]),
     pi_poly: &Polynomial<F>,

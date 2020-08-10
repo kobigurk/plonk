@@ -229,7 +229,7 @@ pub fn scalar_mul(
     let mut scalar_acc: Vec<BlsScalar> = Vec::new();
     scalar_acc.push(BlsScalar::zero());
     let mut point_acc: Vec<AffinePoint> = Vec::new();
-    point_acc.push(AffinePoint::one());
+    point_acc.push(AffinePoint::zero());
 
     // Auxillary point to help with checks on the backend
     let mut xy_alphas = Vec::new();

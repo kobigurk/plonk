@@ -100,7 +100,7 @@ impl<E: PairingEngine> Commitment<E> {
     /// Builds an empty `Commitment` which is equivalent to the
     /// `G1Affine` identity point in Bls12_381.
     pub fn empty() -> Self {
-        Commitment(E::G1Affine::prime_subgroup_generator())
+        Commitment(E::G1Affine::zero())
     }
 }
 

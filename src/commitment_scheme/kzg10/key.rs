@@ -185,8 +185,8 @@ impl<E: PairingEngine> OpeningKey<E> {
         proofs: &[Proof<E>],
         transcript: &mut Transcript,
     ) -> Result<(), Error> {
-        let mut total_c = E::G1Projective::prime_subgroup_generator();
-        let mut total_w = E::G1Projective::prime_subgroup_generator();
+        let mut total_c = E::G1Projective::zero();
+        let mut total_w = E::G1Projective::zero();
 
         let challenge = TranscriptProtocol::<E>::challenge_scalar(transcript, b"batch"); // XXX: Verifier can add their own randomness at this point
         let powers = util::powers_of(&challenge, proofs.len() - 1);
